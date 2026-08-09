@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Earn Nova 🚀</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+<style>
+:root {
+  --bg: #F3F1FA;
+  --card: #ffffff;
+  --accent1: #7C3AED;
+  --accent2: #D946EF;
+  --gold1: #FF9F1C;
+  --gold2: #FFD166;
+  --teal: #0EA5A0;
+  --text: #14102B;
+  --text2: #5B5470;
+  --text3: #9691AC;
+  --border: #E7E2F5;
+  --font: Arial, sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { background:var(--bg); color:var(--text); font-family:var(--font); min-height:100vh; }
+body { padding-bottom:88px; }
+
+/* icon helper */
+.ic { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ic svg { width:100%; height:100%; display:block; }
+
+/* TOPBAR */
+.topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:#fff; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; }
+.tb-x { font-size:22px; color:var(--text2); cursor:pointer; width:26px; text-align:center; }
+.tb-title { display:flex; align-items:center; gap:6px; font-size:19px; font-weight:800; cursor:pointer; }
+.tb-title .chev { font-size:13px; color:var(--text3); }
+.tb-dots { font-size:20px; color:var(--text2); cursor:pointer; letter-spacing:1px; }
+
+/* WELCOME */
+.welcome-row { display:flex; align-items:center; gap:13px; padding:20px 18px 4px; }
+.w-avatar { width:56px; height:56px; border-radius:50%; overflow:hidden; flex-shrink:0; border:3px solid var(--accent1); background:var(--border); display:flex; align-items:center; justify-content:center; color:var(--accent1); }
+.w-avatar img { width:100%; height:100%; object-fit:cover; }
+.w-avatar .ic { width:26px; height:26px; }
+.w-text { font-size:19px; font-weight:800; line-height:1.3; }
+.w-text b { font-weight:900; }
+
+/* BALANCE CARD */
+.balance-card { margin:18px 16px 0; border-radius:26px; padding:26px 22px; background:linear-gradient(135deg,var(--accent1) 0%, var(--accent2) 100%); color:#fff; position:relative; overflow:hidden; text-align:center; box-shadow:0 14px 34px rgba(124,58,237,0.30); }
+.balance-card::before{ content:''; position:absolute; top:-50px; right:-40px; width:170px; height:170px; border-radius:50%; background:rgba(255,255,255,0.10); }
+.balance-card::after{ content:''; position:absolute; bottom:-40px; left:-30px; width:140px; height:140px; border-radius:50%; background:rgba(255,255,255,0.08); }
+.bc-label { font-size:15px; font-weight:600; opacity:.9; position:relative; }
+.bc-amount { font-size:48px; font-weight:900; margin-top:8px; position:relative; letter-spacing:-1px; }
+
+/* STAT CARDS */
+.stat-row { display:grid; grid-template-columns:repeat(3,1fr); gap:11px; padding:16px 16px 0; }
+.stat-card { background:var(--card); border-radius:18px; padding:16px 8px; text-align:center; border:1px solid var(--border); }
+.stat-card .badge { width:34px; height:34px; border-radius:10px; margin:0 auto 8px; display:flex; align-items:center; justify-content:center; color:#fff; }
+.stat-card .badge .ic { width:17px; height:17px; }
+.stat-card .badge.ads { background:linear-gradient(135deg,var(--accent1),var(--accent2)); }
+.stat-card .badge.cal { background:linear-gradient(135deg,var(--gold1),var(--gold2)); }
+.stat-card .badge.ref { background:linear-gradient(135deg,var(--teal),#22D3C7); }
+.stat-card .sv { font-size:22px; font-weight:900; }
+.stat-card .sl { font-size:10.5px; color:var(--text3); font-weight:700; text-transform:uppercase; letter-spacing:.4px; margin-top:3px; }
+
+/* TASK CARD */
+.task-card { margin:18px 16px 0; background:var(--card); border-radius:24px; padding:22px; border:1px solid var(--border); }
+.task-card-title { font-size:19px; font-weight:800; margin-bottom:16px; }
+
+.earn-banner { background:linear-gradient(135deg,var(--accent1),var(--accent2)); border-radius:18px; padding:16px 18px; color:#fff; margin-bottom:18px; position:relative; overflow:hidden; }
+.earn-banner::before{ content:''; position:absolute; top:-30px; right:-20px; width:100px; height:100px; border-radius:50%; background:rgba(255,255,255,0.10); }
+.eb-row { display:flex; align-items:baseline; justify-content:space-between; position:relative; }
+.eb-label { font-size:12.5px; font-weight:700; opacity:.85; }
+.eb-amount { font-size:22px; font-weight:900; }
+.eb-amount .eb-sub { font-size:12px; font-weight:600; opacity:.8; }
+.eb-progress { background:rgba(255,255,255,0.22); border-radius:8px; height:8px; overflow:hidden; margin-top:11px; position:relative; }
+.eb-progress-fill { height:100%; background:#fff; border-radius:8px; transition:width .5s ease; }
+.eb-meta { display:flex; justify-content:space-between; margin-top:8px; font-size:11.5px; opacity:.9; font-weight:600; position:relative; }
+.tbtn-amt { margin-left:auto; font-size:13px; font-weight:900; opacity:.95; }
+.tbtn { width:100%; border:none; border-radius:16px; padding:16px; font-size:16px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; margin-bottom:12px; transition:transform .15s; font-family:var(--font); }
+.tbtn .ic { width:19px; height:19px; }
+.tbtn:active { transform:scale(.97); }
+.tbtn:last-child { margin-bottom:0; }
+.tbtn.watch { background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; box-shadow:0 8px 20px rgba(124,58,237,0.28); }
+.tbtn.popup { background:linear-gradient(135deg,var(--gold1),var(--gold2)); color:#fff; box-shadow:0 8px 20px rgba(255,159,28,0.28); }
+.tbtn.join { background:#fff; border:2px solid var(--accent1); color:var(--accent1); }
+.tbtn:disabled { opacity:.4; }
+
+.done-card { margin:18px 16px 0; background:var(--card); border:2px solid var(--teal); border-radius:24px; padding:26px; text-align:center; }
+.done-card .di { width:44px; height:44px; margin:0 auto; color:var(--teal); }
+.done-card .dt { font-size:16px; font-weight:800; color:var(--teal); margin-top:10px; }
+.done-card .ds { font-size:13px; color:var(--text3); margin-top:4px; }
+
+/* GENERIC SECTIONS */
+.page-section { display:none; padding:18px 16px 0; }
+.page-section.active { display:block; }
+.page-title { font-size:20px; font-weight:900; margin-bottom:16px; }
+
+.webtask-pin { position:sticky; top:57px; z-index:50; background:var(--bg); padding:18px 16px 12px; margin:0 -16px; border-bottom:1px solid var(--border); }
+.wt-pin-row { display:flex; align-items:center; gap:10px; }
+.wt-pin-row span { font-size:12px; font-weight:800; color:var(--accent1); white-space:nowrap; }
+.wt-pin-bar { flex:1; background:var(--border); border-radius:8px; height:7px; overflow:hidden; }
+.wt-pin-fill { height:100%; background:linear-gradient(90deg,var(--accent1),var(--accent2)); border-radius:8px; transition:width .4s ease; }
+
+.notice { background:#FFF4E0; border:1px solid var(--gold1); border-radius:14px; padding:12px 14px; margin-bottom:14px; font-size:13px; font-weight:700; color:#8A5B00; display:flex; align-items:center; gap:9px; }
+.notice .ic { width:16px; height:16px; flex-shrink:0; }
+.panel { background:var(--card); border:1px solid var(--border); border-radius:22px; padding:20px; margin-bottom:14px; }
+.field-label { font-size:11px; color:var(--text3); font-weight:800; text-transform:uppercase; letter-spacing:.5px; margin-bottom:7px; }
+.f-input { width:100%; background:#F8F6FF; border:1.5px solid var(--border); border-radius:13px; padding:13px 14px; font-size:15px; color:var(--text); margin-bottom:14px; outline:none; font-family:var(--font); }
+.f-input:focus { border-color:var(--accent1); }
+.f-hint { font-size:12px; color:var(--text3); margin-top:-10px; margin-bottom:14px; }
+.method-row { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-bottom:16px; }
+.method-btn { background:#F8F6FF; border:1.5px solid var(--border); border-radius:14px; padding:11px 6px; text-align:center; font-size:12.5px; font-weight:800; color:var(--text2); cursor:pointer; display:flex; flex-direction:column; gap:3px; }
+.method-btn span { font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.3px; }
+.method-btn.active { background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; border-color:transparent; }
+.method-btn.active span { color:rgba(255,255,255,0.85); }
+.submit-btn { width:100%; background:linear-gradient(135deg,var(--accent1),var(--accent2)); border:none; border-radius:15px; padding:15px; color:#fff; font-size:16px; font-weight:800; cursor:pointer; box-shadow:0 8px 20px rgba(124,58,237,.28); font-family:var(--font); display:flex; align-items:center; justify-content:center; gap:9px; }
+.submit-btn .ic { width:18px; height:18px; }
+
+.history-item { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 16px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
+.hi-amt { font-size:18px; font-weight:900; }
+.hi-date, .hi-addr { display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--text3); margin-top:4px; }
+.hi-addr { color:var(--text2); }
+.hi-date .ic, .hi-addr .ic { width:11px; height:11px; }
+.hi-addr span.txt { max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.status-badge { padding:6px 12px; border-radius:9px; font-size:11.5px; font-weight:800; white-space:nowrap; display:flex; align-items:center; gap:5px; }
+.status-badge .ic { width:12px; height:12px; }
+.status-badge.completed { background:#DFF7EF; color:var(--teal); }
+.status-badge.pending { background:#FFF1DC; color:#B96A00; }
+.empty-state { text-align:center; padding:36px 0; color:var(--text3); font-size:13.5px; }
+.empty-state .ic { width:34px; height:34px; margin:0 auto 8px; color:var(--text3); }
+
+/* Invite */
+.invite-hero { background:linear-gradient(135deg,#FFF4DA,#FFE7B8); border:2px solid var(--gold1); border-radius:24px; padding:24px; margin-bottom:14px; text-align:center; }
+.invite-hero .ic { width:38px; height:38px; margin:0 auto; color:#B96A00; }
+.ih-amt { font-size:32px; font-weight:900; color:#B96A00; margin-top:8px; }
+.ih-desc { font-size:13.5px; color:#7A5300; margin-top:6px; }
+.link-box { background:var(--card); border:1.5px solid var(--border); border-radius:15px; padding:13px 14px; margin-bottom:12px; display:flex; align-items:center; gap:10px; }
+.link-text { flex:1; font-size:11.5px; color:var(--text2); word-break:break-all; direction:ltr; text-align:left; }
+.copy-btn { background:var(--accent1); color:#fff; border:none; border-radius:10px; padding:8px 14px; font-size:12px; font-weight:800; cursor:pointer; }
+.invite-stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.is-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:15px; text-align:center; }
+.is-label { font-size:10.5px; color:var(--text3); text-transform:uppercase; font-weight:800; letter-spacing:.4px; }
+.is-value { font-size:24px; font-weight:900; margin-top:4px; color:var(--accent1); }
+.is-value.gold { color:#B96A00; }
+
+/* Task list */
+.wtask-item { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 16px; margin-bottom:10px; display:flex; align-items:center; gap:13px; }
+.wtask-item.done { border-color:var(--teal); background:#F1FCF9; }
+.wtask-icon { width:42px; height:42px; border-radius:12px; background:#F3F1FA; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--accent1); }
+.wtask-icon .ic { width:20px; height:20px; }
+.wtask-info { flex:1; }
+.wtask-name { font-size:14.5px; font-weight:800; }
+.wtask-reward { font-size:13px; color:#B96A00; font-weight:700; margin-top:2px; }
+.wtask-btn { padding:8px 15px; border-radius:11px; font-size:13px; font-weight:800; border:none; cursor:pointer; display:flex; align-items:center; gap:6px; }
+.wtask-btn .ic { width:13px; height:13px; }
+.wtask-btn.go { background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; }
+.wtask-btn.done-btn { background:#DFF7EF; color:var(--teal); }
+
+/* MODALS */
+.ad-modal { display:none; position:fixed; inset:0; z-index:998; background:rgba(20,16,43,0.65); backdrop-filter:blur(6px); align-items:center; justify-content:center; }
+.ad-modal.open { display:flex; }
+.ad-modal-box { background:#fff; border-radius:24px; width:calc(100% - 40px); max-width:340px; padding:30px 22px; text-align:center; }
+.ad-count { font-size:58px; font-weight:900; background:linear-gradient(135deg,var(--accent1),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.ad-mtitle { font-size:16px; font-weight:800; margin-top:6px; }
+.ad-msub { font-size:12.5px; color:var(--text3); margin-top:6px; }
+
+.toast { position:fixed; bottom:96px; left:50%; transform:translateX(-50%) translateY(16px); background:var(--text); color:#fff; padding:11px 20px; border-radius:13px; font-size:13.5px; font-weight:700; opacity:0; transition:.3s; z-index:9999; white-space:nowrap; display:flex; align-items:center; gap:8px; }
+.toast .ic { width:15px; height:15px; }
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* BOTTOM NAV — 5 items: Home, Withdraw, History, Invite, Web Task */
+.bottom-nav { position:fixed; bottom:0; left:0; right:0; z-index:200; background:#fff; border-top:1px solid var(--border); display:flex; height:74px; }
+.nav-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; cursor:pointer; }
+.nav-item .ic { width:20px; height:20px; color:var(--text3); }
+.nav-item .nl { font-size:10px; font-weight:700; color:var(--text3); }
+.nav-item.active .ic, .nav-item.active .nl { color:var(--accent1); }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="tb-x" onclick="switchTab('home')">✕</div>
+  <div class="tb-title" onclick="switchTab('home')">Earn Nova 🚀 <span class="chev">▾</span></div>
+  <div class="tb-dots">⋮</div>
+</div>
+
+<!-- HOME -->
+<div id="page-home" class="page-section active" style="padding-top:0">
+  <div class="welcome-row">
+    <div class="w-avatar" id="userAvatar"></div>
+    <div class="w-text">Welcome, <b id="userName">Loading...</b>!</div>
+  </div>
+
+  <div class="balance-card">
+    <div class="bc-label">Your Balance</div>
+    <div class="bc-amount">$<span id="balanceNum">0.000</span></div>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-card"><div class="badge ads"><span class="ic" data-icon="play"></span></div><div class="sv" id="totalWatched">0</div><div class="sl">Ads Watched</div></div>
+    <div class="stat-card"><div class="badge cal"><span class="ic" data-icon="calendar"></span></div><div class="sv" id="adCounter">0/60</div><div class="sl">Ads (10h)</div></div>
+    <div class="stat-card"><div class="badge ref"><span class="ic" data-icon="users"></span></div><div class="sv" id="friendsCountSmall">0</div><div class="sl">Referrals</div></div>
+  </div>
+
+  <div class="task-card" id="taskCard">
+    <div class="earn-banner">
+      <div class="eb-row">
+        <div class="eb-label">Earn up to</div>
+        <div class="eb-amount">$6.00<span class="eb-sub"> / 10 hours</span></div>
+      </div>
+      <div class="eb-progress"><div class="eb-progress-fill" id="ebFill" style="width:0%"></div></div>
+      <div class="eb-meta"><span id="ebEarned">$0.00 earned this period</span><span id="ebCount">0/60 ads</span></div>
+    </div>
+    <div class="task-card-title">Watch Ads to Earn</div>
+    <button class="tbtn watch" id="watchBtn" onclick="watchAd()"><span class="ic" data-icon="play"></span> Watch Ad <span class="tbtn-amt">+$0.10</span></button>
+    <button class="tbtn popup" onclick="popupAd()"><span class="ic" data-icon="bell"></span> Pop Up Ad <span class="tbtn-amt">+$0.10</span></button>
+    <button class="tbtn join" onclick="joinChannel()"><span class="ic" data-icon="send"></span> Join Channel</button>
+  </div>
+
+  <div id="doneCard" class="done-card" style="display:none">
+    <div class="di ic" data-icon="checkCircle"></div>
+    <div class="dt">Ad limit reached (60/60)</div>
+    <div class="ds" id="resetTimerText">New ads unlock soon</div>
+  </div>
+</div>
+
+<!-- WITHDRAW -->
+<div id="page-withdraw" class="page-section">
+  <div class="page-title">Withdraw</div>
+  <div class="notice"><span class="ic" data-icon="alert"></span> Minimum $35.00 required to withdraw</div>
+  <div class="panel">
+    <div class="field-label">Withdrawal Method</div>
+    <div class="method-row" id="methodRow">
+      <div class="method-btn" data-method="trc20" onclick="selectMethod('trc20')">USDT<span>TRC20</span></div>
+      <div class="method-btn" data-method="bep20" onclick="selectMethod('bep20')">USDT<span>BEP20</span></div>
+      <div class="method-btn" data-method="paypal" onclick="selectMethod('paypal')">PayPal<span>Email</span></div>
+    </div>
+    <div class="field-label">Amount</div>
+    <input type="number" class="f-input" id="withdrawAmount" placeholder="e.g. 40.00" step="0.01" min="35">
+    <div class="f-hint">Available: $<span id="availableBal">0.000</span> · Min $35.00</div>
+    <div class="field-label" id="addressLabel">USDT (TRC20) ADDRESS</div>
+    <input type="text" class="f-input" id="withdrawAddress" placeholder="T..." style="direction:ltr">
+    <button class="submit-btn" onclick="submitWithdraw()"><span class="ic" data-icon="send"></span> Submit Withdrawal Request</button>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div id="page-history" class="page-section">
+  <div class="page-title">History</div>
+  <div id="historyList"></div>
+</div>
+
+<!-- INVITE -->
+<div id="page-invite" class="page-section">
+  <div class="page-title">Invite & Earn</div>
+  <div class="invite-hero">
+    <span class="ic" data-icon="gift"></span>
+    <div class="ih-amt">$2.00</div>
+    <div class="ih-desc">Share your link — earn $2.00 for every friend who joins!</div>
+  </div>
+  <div class="field-label">Your Invite Link</div>
+  <div class="link-box">
+    <div class="link-text" id="inviteLinkText">https://t.me/Earn_Nova1_Bot/app?startapp=...</div>
+    <button class="copy-btn" onclick="copyInviteLink()">Copy</button>
+  </div>
+  <button class="submit-btn" onclick="shareInvite()" style="margin-bottom:14px"><span class="ic" data-icon="link"></span> Share with Friends</button>
+  <div class="invite-stats">
+    <div class="is-card"><div class="is-label">Friends Invited</div><div class="is-value" id="friendsCount">0</div></div>
+    <div class="is-card"><div class="is-label">Earned</div><div class="is-value gold" id="inviteEarned">$0.00</div></div>
+  </div>
+</div>
+
+<!-- WEB TASK -->
+<div id="page-webtask" class="page-section" style="padding-top:0">
+  <div class="webtask-pin">
+    <div class="page-title" style="margin-bottom:2px">Web Task</div>
+    <div class="wt-pin-row">
+      <span id="wtPinCount">0/10 completed</span>
+      <div class="wt-pin-bar"><div class="wt-pin-fill" id="wtPinFill" style="width:0%"></div></div>
+    </div>
+  </div>
+  <div id="webTaskList" style="padding-top:14px"></div>
+</div>
+
+<!-- AD MODAL -->
+<div class="ad-modal" id="adModal">
+  <div class="ad-modal-box">
+    <div class="ad-count" id="adCountdown">5</div>
+    <div class="ad-mtitle">Watching Ad...</div>
+    <div class="ad-msub">Don't close — earn $0.10 on completion</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <div class="nav-item active" onclick="switchTab('home')" id="nav-home"><span class="ic" data-icon="home"></span><div class="nl">Home</div></div>
+  <div class="nav-item" onclick="switchTab('withdraw')" id="nav-withdraw"><span class="ic" data-icon="wallet"></span><div class="nl">Withdraw</div></div>
+  <div class="nav-item" onclick="switchTab('history')" id="nav-history"><span class="ic" data-icon="clock"></span><div class="nl">History</div></div>
+  <div class="nav-item" onclick="switchTab('invite')" id="nav-invite"><span class="ic" data-icon="userPlus"></span><div class="nl">Invite</div></div>
+  <div class="nav-item" onclick="switchTab('webtask')" id="nav-webtask"><span class="ic" data-icon="headset"></span><div class="nl">Web Task</div></div>
+</div>
+
+<script>
+// ====== ICON LIBRARY (real line icons, no emoji) ======
+const ICONS = {
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1V15h4v4.5a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1V10"/></svg>',
+  wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="14" rx="2.5"/><path d="M2.5 10.5h19"/><circle cx="16.5" cy="14.5" r="1.25" fill="currentColor" stroke="none"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.25"/><path d="M12 7v5.2l3.4 2"/></svg>',
+  userPlus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="8" r="3.5"/><path d="M2.5 20v-1a6 6 0 0 1 6-6h2a6 6 0 0 1 5.9 5"/><path d="M19 8v6M22 11h-6"/></svg>',
+  headset: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4" height="6" rx="1.5"/><rect x="17" y="13" width="4" height="6" rx="1.5"/><path d="M19 19.5a4 4 0 0 1-4 3.5h-2.2"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8.5 5.2c0-.9 1-1.4 1.7-.9l9.3 6.8c.6.5.6 1.4 0 1.8l-9.3 6.8c-.7.5-1.7 0-1.7-.9V5.2z"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M16 2.5v4M8 2.5v4M3 10h18"/></svg>',
+  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.6"/><path d="M2.5 20.5v-1a6 6 0 0 1 6-6h1a6 6 0 0 1 6 6v1"/><circle cx="17.5" cy="9" r="2.8"/><path d="M21.5 20.5v-.8a4.3 4.3 0 0 0-3-4.1"/></svg>',
+  bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.3 8.5a6.3 6.3 0 0 0-12.6 0c0 7.2-3 9.2-3 9.2h18.6s-3-2-3-9.2"/><path d="M13.9 21.2a2.2 2.2 0 0 1-3.8 0"/></svg>',
+  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2.5 10.7 13.3"/><path d="M21.5 2.5 15 21.5l-4.3-8.2-8.2-4.3z"/></svg>',
+  checkCircle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.25"/><path d="M8.2 12.3l2.6 2.6 5-5.4"/></svg>',
+  gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8.5" width="18" height="4.5" rx="1"/><rect x="4.2" y="13" width="15.6" height="8.5" rx="1"/><path d="M12 8.5v13"/><path d="M12 8.5C10.5 8.5 8.5 7.5 8.5 5.6A2.6 2.6 0 0 1 12 3.5v5zM12 8.5c1.5 0 3.5-1 3.5-2.9A2.6 2.6 0 0 0 12 3.5v5z"/></svg>',
+  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 14.5 14.5 9.5"/><path d="M11 6.5l1.2-1.2a3.6 3.6 0 0 1 5.1 5.1L16 11.6M13 17.5l-1.2 1.2a3.6 3.6 0 0 1-5.1-5.1L8 12.4"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 10.2c0 6.3-8.5 12-8.5 12s-8.5-5.7-8.5-12a8.5 8.5 0 0 1 17 0z"/><circle cx="12" cy="10.2" r="2.8"/></svg>',
+  inbox: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 12.5h-5.3l-1.8 2.7h-4.8l-1.8-2.7H2.5"/><path d="M5.7 5.4 2.5 12.5v6a2 2 0 0 0 2 2h15a2 2 0 0 0 2-2v-6l-3.2-7.1a2 2 0 0 0-1.8-1.2H7.5a2 2 0 0 0-1.8 1.2z"/></svg>',
+  megaphone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5v3a1.8 1.8 0 0 0 1.8 1.8h1L10.5 19V6l-4.7 3.7h-1A1.8 1.8 0 0 0 3 10.5z"/><path d="M14.5 8.2a4.5 4.5 0 0 1 0 7.6M18 5.5a8.5 8.5 0 0 1 0 13"/></svg>',
+  coin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.25"/><path d="M9.3 9.3a2.7 2.7 0 0 1 5.4 0c0 1.6-2.7 2.2-2.7 3.8M12 17.3h.01"/></svg>',
+  gem: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4.5 6L12 21 1.5 9z"/><path d="M1.5 9h21M9 3l3 6-3 12M15 3l-3 6 3 12"/></svg>',
+  robot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="8.5" width="15" height="11" rx="2.5"/><path d="M12 8.5v-3M9 3.5h6"/><circle cx="9" cy="14" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1.2" fill="currentColor" stroke="none"/><path d="M9.5 17.5h5"/><path d="M2.5 12v4M21.5 12v4"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.2" r="3.9"/><path d="M4.3 20.5v-1a7.7 7.7 0 0 1 15.4 0v1"/></svg>',
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 22.5 21h-21z"/><path d="M12 9.5v4.2M12 17.2h.01"/></svg>',
+};
+function iconHTML(name){ return ICONS[name] || ''; }
+function paintIcons(root){
+  (root||document).querySelectorAll('[data-icon]').forEach(el=>{
+    const name = el.getAttribute('data-icon');
+    if(!el.dataset.painted){ el.innerHTML = iconHTML(name); el.dataset.painted='1'; }
+  });
+}
+function iconSpan(name,cls){ return `<span class="ic ${cls||''}">${iconHTML(name)}</span>`; }
+
+// type:'link'  -> opens the given URL, then marks done after a short delay
+// type:'ad'    -> plays an ad (same mechanic as the Home watch-ad button);
+//                  swap the AdController blockId per task once you have
+//                  separate ad-network placements/codes for each slot.
+const WEB_TASKS = [
+  {id:'w1',icon:'send',name:'Join Our Channel',type:'link',link:'https://t.me/Earn_Nova1',reward:0.10},
+  {id:'w2',icon:'play',name:'Watch Ad #1',type:'ad',reward:0.10},
+  {id:'w3',icon:'play',name:'Watch Ad #2',type:'ad',reward:0.10},
+  {id:'w4',icon:'play',name:'Watch Ad #3',type:'ad',reward:0.10},
+  {id:'w5',icon:'play',name:'Watch Ad #4',type:'ad',reward:0.10},
+  {id:'w6',icon:'play',name:'Watch Ad #5',type:'ad',reward:0.10},
+  {id:'w7',icon:'play',name:'Watch Ad #6',type:'ad',reward:0.10},
+  {id:'w8',icon:'play',name:'Watch Ad #7',type:'ad',reward:0.10},
+  {id:'w9',icon:'play',name:'Watch Ad #8',type:'ad',reward:0.10},
+  {id:'w10',icon:'play',name:'Watch Ad #9',type:'ad',reward:0.10},
+];
+
+const AD_REWARD = 0.10;
+const AD_LIMIT = 60;
+const AD_PERIOD_MS = 10 * 60 * 60 * 1000; // 10 hours
+const REFERRAL_REWARD = 2.00;
+const MIN_WITHDRAW = 35.00;
+
+let S = {
+  balance:0, adsWatchedToday:0, totalWatched:0,
+  friendsCount:0, inviteEarned:0,
+  webTasks:{}, withdrawMethod:'trc20',
+  history:[], userId:null, userName:null, userPhoto:null, periodStart:null,
+  wasReferred:false, referredBy:null,
+};
+
+// ====== FIREBASE (Realtime Database) ======
+// All user data — balance, ads watched, referrals, task completions and
+// withdrawal history — lives at: {FIREBASE_URL}/users/{userId}.json
+// This is plain REST calls to the RTDB URL you gave me. NOTE: this only
+// works if your database rules allow public read/write (the Firebase
+// default "test mode" rules). That also means anyone could read or edit
+// any user's balance directly via the REST API — fine for getting this
+// running, but before real money is on the line you should lock down
+// rules (e.g. require Telegram-verified auth) or move writes behind a
+// Cloud Function. Happy to help set that up when you're ready.
+const FIREBASE_URL = 'https://meta-334b2-default-rtdb.firebaseio.com';
+
+async function fbGet(path){
+  try{
+    const res = await fetch(`${FIREBASE_URL}/${path}.json`);
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){ console.warn('Firebase GET failed:', e); return null; }
+}
+async function fbSet(path, data){
+  try{
+    const res = await fetch(`${FIREBASE_URL}/${path}.json`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)
+    });
+    return res.ok;
+  }catch(e){ console.warn('Firebase PUT failed:', e); return false; }
+}
+
+function getKey(){ return 'vp_' + (S.userId||'guest'); }
+function loadMini(){
+  try{ const tmp=localStorage.getItem('vp2_state'); if(tmp){ const d=JSON.parse(tmp); S.userId=d.userId||null; S.userName=d.userName||null; S.userPhoto=d.userPhoto||null; } }catch(e){}
+}
+function loadUserLocal(){ try{ const d=localStorage.getItem(getKey()); if(d) S={...S,...JSON.parse(d)}; }catch(e){} }
+function saveLocal(){
+  try{
+    localStorage.setItem(getKey(),JSON.stringify(S));
+    localStorage.setItem('vp2_state',JSON.stringify({userId:S.userId,userName:S.userName,userPhoto:S.userPhoto}));
+  }catch(e){}
+}
+// save() writes to the local cache immediately (instant UI) and pushes the
+// full user record to Firebase in the background (fire-and-forget).
+function save(){
+  saveLocal();
+  fbSet(`users/${S.userId}`, S);
+}
+
+window.Telegram?.WebApp?.ready();
+window.Telegram?.WebApp?.expand();
+
+async function init(){
+  loadMini();
+  const tgU = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  if(tgU){ S.userId=tgU.id; S.userName=tgU.first_name+(tgU.last_name?' '+tgU.last_name:''); S.userPhoto=tgU.photo_url||null; }
+  else { if(!S.userId) S.userId=Math.floor(Math.random()*9000000+1000000); if(!S.userName) S.userName='Guest'; }
+
+  // 1) Paint instantly from local cache (fast, works offline)
+  loadUserLocal();
+  renderAll();
+
+  // 2) Firebase is the source of truth — pull the latest synced record
+  //    (this is what makes balances/referrals/history consistent across
+  //    every device the user opens the app from)
+  const remote = await fbGet(`users/${S.userId}`);
+  if(remote){ S = {...S, ...remote, userId:S.userId}; }
+
+  if(tgU){ S.userId=tgU.id; S.userName=tgU.first_name+(tgU.last_name?' '+tgU.last_name:''); S.userPhoto=tgU.photo_url||null; }
+
+  checkAdPeriod();
+  await checkReferral();
+  save();
+  renderAll();
+  paintIcons();
+  initAdGram();
+  setInterval(()=>{ checkAdPeriod(); renderHome(); }, 30000); // re-check every 30s
+}
+
+// Rolling window: up to AD_LIMIT ads per AD_PERIOD_MS. Resets automatically
+// once the period has elapsed since it started (not a fixed daily reset).
+function checkAdPeriod(){
+  const now = Date.now();
+  if(!S.periodStart || (now - S.periodStart) >= AD_PERIOD_MS){
+    S.periodStart = now;
+    S.adsWatchedToday = 0;
+    save();
+  }
+}
+function msUntilReset(){
+  if(!S.periodStart) return 0;
+  return Math.max(0, AD_PERIOD_MS - (Date.now() - S.periodStart));
+}
+function formatCountdown(ms){
+  const totalMin = Math.ceil(ms/60000);
+  const h = Math.floor(totalMin/60);
+  const m = totalMin%60;
+  if(h<=0) return `New ads unlock in ${m}m`;
+  return `New ads unlock in ${h}h ${m}m`;
+}
+
+// Referral crediting — now reads/writes the referrer's record directly in
+// Firebase, so it works correctly across two different people's devices
+// (this is the real fix for the earlier localStorage-only limitation).
+async function checkReferral(){
+  try{
+    const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+    if(startParam && startParam !== String(S.userId) && !S.wasReferred){
+      S.wasReferred = true; S.referredBy = startParam;
+      save();
+      await creditReferrer(startParam);
+    }
+  }catch(e){}
+}
+async function creditReferrer(referrerId){
+  try{
+    let ref = await fbGet(`users/${referrerId}`);
+    if(!ref){
+      ref = {
+        balance:0, adsWatchedToday:0, totalWatched:0, friendsCount:0, inviteEarned:0,
+        webTasks:{}, history:[], userId:referrerId,
+        userName:null, userPhoto:null, periodStart:null, wasReferred:false, referredBy:null,
+      };
+    }
+    ref.friendsCount = (ref.friendsCount||0)+1;
+    ref.balance = +((ref.balance||0)+REFERRAL_REWARD).toFixed(3);
+    ref.inviteEarned = +((ref.inviteEarned||0)+REFERRAL_REWARD).toFixed(3);
+    await fbSet(`users/${referrerId}`, ref);
+    if(String(S.userId)===String(referrerId)){ S.friendsCount=ref.friendsCount; S.balance=ref.balance; S.inviteEarned=ref.inviteEarned; save(); }
+  }catch(e){ console.warn('creditReferrer failed:', e); }
+}
+
+function renderAll(){ renderHeader(); renderHome(); renderInvite(); renderWithdraw(); renderHistory(); renderWebTasks(); }
+
+function renderHeader(){
+  document.getElementById('userName').textContent = S.userName || 'Guest';
+  const av = document.getElementById('userAvatar');
+  if(S.userPhoto){ av.innerHTML = `<img src="${S.userPhoto}" alt="">`; }
+  else { av.innerHTML = iconSpan('user'); }
+}
+
+function renderHome(){
+  checkAdPeriod();
+  document.getElementById('balanceNum').textContent = S.balance.toFixed(3);
+  document.getElementById('totalWatched').textContent = S.totalWatched;
+  document.getElementById('adCounter').textContent = `${S.adsWatchedToday}/${AD_LIMIT}`;
+  document.getElementById('friendsCountSmall').textContent = S.friendsCount;
+
+  const pct = Math.min(S.adsWatchedToday/AD_LIMIT,1)*100;
+  document.getElementById('ebFill').style.width = pct+'%';
+  document.getElementById('ebEarned').textContent = `$${(S.adsWatchedToday*AD_REWARD).toFixed(2)} earned this period`;
+  document.getElementById('ebCount').textContent = `${S.adsWatchedToday}/${AD_LIMIT} ads`;
+
+  const done = S.adsWatchedToday >= AD_LIMIT;
+  document.getElementById('taskCard').style.display = done ? 'none' : 'block';
+  document.getElementById('doneCard').style.display = done ? 'block' : 'none';
+  document.getElementById('watchBtn').disabled = done;
+  if(done){ document.getElementById('resetTimerText').textContent = formatCountdown(msUntilReset()); }
+  paintIcons();
+}
+
+let adWatching = false;
+let AdController = null;
+async function initAdGram(){
+  try{ AdController = await window.Adsgram.init({ blockId:"34039", debug:false, debugBannerType:"FullscreenMedia" }); }
+  catch(e){ console.warn('AdGram init failed:', e); AdController=null; }
+}
+function creditAd(){
+  checkAdPeriod();
+  S.adsWatchedToday++; S.totalWatched++;
+  S.balance = +(S.balance+AD_REWARD).toFixed(3);
+  save(); renderHome();
+  showToast('checkCircle',`+$${AD_REWARD.toFixed(2)} earned`);
+}
+function watchAd(){
+  checkAdPeriod();
+  if(adWatching || S.adsWatchedToday>=AD_LIMIT) return;
+  if(AdController){
+    adWatching=true;
+    AdController.show().then(()=>{ adWatching=false; creditAd(); })
+      .catch((r)=>{ adWatching=false; if(r?.error) console.warn(r.description); });
+    return;
+  }
+  adWatching=true;
+  const modal=document.getElementById('adModal'); modal.classList.add('open');
+  let sec=5; document.getElementById('adCountdown').textContent=sec;
+  const iv=setInterval(()=>{
+    sec--; document.getElementById('adCountdown').textContent=sec;
+    if(sec<=0){ clearInterval(iv); modal.classList.remove('open'); adWatching=false; creditAd(); }
+  },1000);
+}
+function popupAd(){ watchAd(); }
+function joinChannel(){ window.open('https://t.me/Earn_Nova1','_blank'); }
+
+function switchTab(tab){
+  document.querySelectorAll('.page-section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  const nav = document.getElementById('nav-'+tab);
+  if(nav) nav.classList.add('active');
+  if(tab==='withdraw') renderWithdraw();
+  if(tab==='history') renderHistory();
+}
+
+function renderWebTasks(){
+  document.getElementById('webTaskList').innerHTML = WEB_TASKS.map(task=>`
+    <div class="wtask-item ${S.webTasks[task.id]?'done':''}">
+      <div class="wtask-icon">${iconSpan(task.icon)}</div>
+      <div class="wtask-info"><div class="wtask-name">${task.name}</div><div class="wtask-reward">+$${task.reward.toFixed(2)}</div></div>
+      ${S.webTasks[task.id] ? `<button class="wtask-btn done-btn">${iconSpan('checkCircle')} Done</button>` : `<button class="wtask-btn go" onclick="doWebTask('${task.id}')">${task.type==='ad'?'Watch':'Go'} ${iconSpan(task.type==='ad'?'play':'send')}</button>`}
+    </div>`).join('');
+  const doneCount = WEB_TASKS.filter(t=>S.webTasks[t.id]).length;
+  document.getElementById('wtPinCount').textContent = `${doneCount}/${WEB_TASKS.length} completed`;
+  document.getElementById('wtPinFill').style.width = (doneCount/WEB_TASKS.length*100)+'%';
+  paintIcons();
+}
+function doWebTask(id){
+  if(S.webTasks[id]) return;
+  const task = WEB_TASKS.find(x=>x.id===id); if(!task) return;
+
+  const finish = ()=>{
+    S.webTasks[id]=true; S.balance=+(S.balance+task.reward).toFixed(3);
+    save(); renderHome(); renderWebTasks();
+    showToast('checkCircle',`+$${task.reward.toFixed(2)} earned`);
+  };
+
+  if(task.type==='ad'){
+    // Placeholder ad slot — reuses the same AdController as the Home watch-ad
+    // button. Swap in a dedicated blockId per task once real ad-network
+    // codes are ready for each of the 9 slots.
+    if(AdController){
+      AdController.show().then(finish).catch(()=>{});
+    } else {
+      const modal=document.getElementById('adModal'); modal.classList.add('open');
+      let sec=5; document.getElementById('adCountdown').textContent=sec;
+      const iv=setInterval(()=>{
+        sec--; document.getElementById('adCountdown').textContent=sec;
+        if(sec<=0){ clearInterval(iv); modal.classList.remove('open'); finish(); }
+      },1000);
+    }
+    return;
+  }
+
+  if(task.link) window.open(task.link,'_blank');
+  setTimeout(finish, 1500);
+}
+
+function getInviteLink(uid){ return `https://t.me/Earn_Nova1_Bot/app?startapp=${uid||'USER_ID'}`; }
+function renderInvite(){
+  document.getElementById('inviteLinkText').textContent = getInviteLink(S.userId);
+  document.getElementById('friendsCount').textContent = S.friendsCount;
+  document.getElementById('inviteEarned').textContent = '$'+S.inviteEarned.toFixed(2);
+  paintIcons();
+}
+function copyInviteLink(){
+  const link=getInviteLink(S.userId);
+  if(navigator.clipboard){ navigator.clipboard.writeText(link).catch(()=>fallbackCopy(link)); } else fallbackCopy(link);
+  showToast('checkCircle','Copied to clipboard');
+}
+function fallbackCopy(text){ const el=document.createElement('textarea'); el.value=text; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); }
+function shareInvite(){
+  const link=getInviteLink(S.userId);
+  if(window.Telegram?.WebApp){ window.Telegram.WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join Earn Nova 🚀 and earn free cash!')}`); }
+  else { fallbackCopy(link); showToast('checkCircle','Copied to clipboard'); }
+}
+
+const METHOD_LABELS = {
+  trc20: { title:'USDT (TRC20) ADDRESS', placeholder:'T...' },
+  bep20: { title:'USDT (BEP20) ADDRESS', placeholder:'0x...' },
+  paypal: { title:'PAYPAL EMAIL', placeholder:'you@example.com' },
+};
+function selectMethod(m){
+  S.withdrawMethod = m;
+  save();
+  renderMethodUI();
+}
+function renderMethodUI(){
+  const m = S.withdrawMethod || 'trc20';
+  document.querySelectorAll('.method-btn').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('data-method')===m);
+  });
+  const info = METHOD_LABELS[m];
+  document.getElementById('addressLabel').textContent = info.title;
+  document.getElementById('withdrawAddress').placeholder = info.placeholder;
+}
+function renderWithdraw(){ document.getElementById('availableBal').textContent = S.balance.toFixed(3); renderMethodUI(); paintIcons(); }
+function submitWithdraw(){
+  const amt = parseFloat(document.getElementById('withdrawAmount').value);
+  const addr = document.getElementById('withdrawAddress').value.trim();
+  const method = S.withdrawMethod || 'trc20';
+  if(!amt||isNaN(amt)){ showToast('alert','Please enter amount'); return; }
+  if(amt<MIN_WITHDRAW){ showToast('alert',`Minimum withdrawal is $${MIN_WITHDRAW.toFixed(2)}`); return; }
+  if(amt>S.balance){ showToast('alert','Insufficient balance'); return; }
+  if(!addr){ showToast('alert','Please enter your address / email'); return; }
+  const entry = { id:Date.now(), amount:amt, address:addr, method, date:new Date().toLocaleString(), status:'pending' };
+  S.history.unshift(entry);
+  S.balance = +(S.balance-amt).toFixed(3);
+  save();
+  document.getElementById('withdrawAmount').value='';
+  document.getElementById('withdrawAddress').value='';
+  renderHome(); renderWithdraw();
+  showToast('checkCircle','Withdrawal request submitted');
+}
+function methodDisplayName(m){
+  return m==='trc20' ? 'USDT · TRC20' : m==='bep20' ? 'USDT · BEP20' : m==='paypal' ? 'PayPal' : 'USDT · TRC20';
+}
+function renderHistory(){
+  const list = document.getElementById('historyList');
+  if(!S.history.length){
+    list.innerHTML = `<div class="empty-state">${iconSpan('inbox')}<div>No withdrawals yet</div></div>`;
+    paintIcons(); return;
+  }
+  list.innerHTML = S.history.map(h=>`
+    <div class="history-item">
+      <div>
+        <div class="hi-amt">$${h.amount.toFixed(2)} <span style="font-size:11px;color:var(--text3);font-weight:700">· ${methodDisplayName(h.method)}</span></div>
+        <div class="hi-date">${iconSpan('calendar')} ${h.date}</div>
+        <div class="hi-addr">${iconSpan('pin')} <span class="txt">${h.address}</span></div>
+      </div>
+      <div class="status-badge ${h.status==='completed'?'completed':'pending'}">${h.status==='completed'?iconSpan('checkCircle')+' Completed':iconSpan('clock')+' Pending'}</div>
+    </div>`).join('');
+  paintIcons();
+}
+
+function showToast(icon,msg){
+  const el=document.getElementById('toast');
+  el.innerHTML = iconSpan(icon)+`<span>${msg}</span>`;
+  paintIcons(el);
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2400);
+}
+
+// Admin console helpers
+window.approveWithdraw=function(id){ const h=S.history.find(x=>x.id===id); if(h){h.status='completed';save();renderHistory();showToast('checkCircle','Approved');} };
+window.approveAllWithdraws=function(){ S.history.forEach(h=>{if(h.status==='pending')h.status='completed';}); save();renderHistory();showToast('checkCircle','All approved'); };
+window.setBalance=function(amt){ S.balance=+amt; save(); renderHome(); renderWithdraw(); };
+
+init();
+</script>
+</body>
+</html>
