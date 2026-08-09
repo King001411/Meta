@@ -525,7 +525,7 @@ async function initAdGram(){
   try{
     adexiumInstance = new window.AdexiumWidget({
       wid: '902e0b02-566e-44ba-8364-814cb00ce962',
-      adFormat: 'interstitial',
+      adFormat: 'push-like',
       debug: false,
       // Do NOT call adexiumInstance.autoMode() — we trigger ads manually
       // (on the Watch Ad click) instead of letting them pop up on their own.
@@ -560,7 +560,7 @@ function showAdexiumAd(){
     adexiumInstance.on('adPlaybackCompleted', onCompleted);
     adexiumInstance.on('noAdFound', onNoAd);
     adexiumInstance.on('adClosed', onClosed);
-    adexiumInstance.requestAd('interstitial');
+    adexiumInstance.requestAd('push-like');
   });
 }
 
