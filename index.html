@@ -542,14 +542,17 @@ function showGigaAd(){
 }
 
 // --- Ad #2: Adexium (event-based SDK, wrapped into a Promise) ---
+// NOTE: push-like ads don't have a video "playback" — adPlaybackCompleted
+// rarely/never fires for this format. adClosed (the ad was shown, then
+// dismissed/finished) is the real success signal here. Only noAdFound
+// counts as a real failure (no reward).
 function showAdexiumAd(){
   return new Promise((resolve, reject)=>{
     if(!adexiumInstance){ reject('adexium_not_loaded'); return; }
-    let completed = false;
     const onReceived  = (ad)=>{ adexiumInstance.displayAd(ad); };
-    const onCompleted = ()=>{ completed=true; cleanup(); resolve(); };
+    const onCompleted = ()=>{ cleanup(); resolve(); };
     const onNoAd      = ()=>{ cleanup(); reject('no_ad'); };
-    const onClosed    = ()=>{ if(!completed){ cleanup(); reject('closed_early'); } };
+    const onClosed    = ()=>{ cleanup(); resolve(); };
     function cleanup(){
       adexiumInstance.off('adReceived', onReceived);
       adexiumInstance.off('adPlaybackCompleted', onCompleted);
