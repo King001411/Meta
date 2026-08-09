@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Earn Nova 🚀</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+<!-- GigaPub SDK (ad network #1) -->
+<script src="https://ad.gigapub.tech/script?id=7664"></script>
+<!-- Adexium SDK (ad network #2) -->
+<script type="text/javascript" src="https://cdn.tgads.space/assets/js/adexium-widget.min.js"></script>
 <style>
 :root {
   --bg: #F3F1FA;
@@ -30,12 +33,6 @@ body { padding-bottom:88px; }
 .ic svg { width:100%; height:100%; display:block; }
 
 /* TOPBAR */
-.topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:#fff; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; }
-.tb-x { font-size:22px; color:var(--text2); cursor:pointer; width:26px; text-align:center; }
-.tb-title { display:flex; align-items:center; gap:6px; font-size:19px; font-weight:800; cursor:pointer; }
-.tb-title .chev { font-size:13px; color:var(--text3); }
-.tb-dots { font-size:20px; color:var(--text2); cursor:pointer; letter-spacing:1px; }
-
 /* WELCOME */
 .welcome-row { display:flex; align-items:center; gap:13px; padding:20px 18px 4px; }
 .w-avatar { width:56px; height:56px; border-radius:50%; overflow:hidden; flex-shrink:0; border:3px solid var(--accent1); background:var(--border); display:flex; align-items:center; justify-content:center; color:var(--accent1); }
@@ -177,13 +174,6 @@ body { padding-bottom:88px; }
 </style>
 </head>
 <body>
-
-<!-- TOPBAR -->
-<div class="topbar">
-  <div class="tb-x" onclick="switchTab('home')">✕</div>
-  <div class="tb-title" onclick="switchTab('home')">Earn Nova 🚀 <span class="chev">▾</span></div>
-  <div class="tb-dots">⋮</div>
-</div>
 
 <!-- HOME -->
 <div id="page-home" class="page-section active" style="padding-top:0">
@@ -527,11 +517,73 @@ function renderHome(){
 }
 
 let adWatching = false;
-let AdController = null;
+let adexiumInstance = null;
+
+// GigaPub is ready as soon as its <script> tag (in <head>) finishes loading —
+// it exposes window.showGiga() globally, no init() call needed.
 async function initAdGram(){
-  try{ AdController = await window.Adsgram.init({ blockId:"34039", debug:false, debugBannerType:"FullscreenMedia" }); }
-  catch(e){ console.warn('AdGram init failed:', e); AdController=null; }
+  try{
+    adexiumInstance = new window.AdexiumWidget({
+      wid: '902e0b02-566e-44ba-8364-814cb00ce962',
+      adFormat: 'interstitial',
+      debug: false,
+      // Do NOT call adexiumInstance.autoMode() — we trigger ads manually
+      // (on the Watch Ad click) instead of letting them pop up on their own.
+    });
+  }catch(e){ console.warn('Adexium init failed:', e); adexiumInstance = null; }
 }
+
+// --- Ad #1: GigaPub ---
+function showGigaAd(){
+  return new Promise((resolve, reject)=>{
+    if(typeof window.showGiga !== 'function'){ reject('gigapub_not_loaded'); return; }
+    window.showGiga().then(resolve).catch(reject);
+  });
+}
+
+// --- Ad #2: Adexium (event-based SDK, wrapped into a Promise) ---
+function showAdexiumAd(){
+  return new Promise((resolve, reject)=>{
+    if(!adexiumInstance){ reject('adexium_not_loaded'); return; }
+    let completed = false;
+    const onReceived  = (ad)=>{ adexiumInstance.displayAd(ad); };
+    const onCompleted = ()=>{ completed=true; cleanup(); resolve(); };
+    const onNoAd      = ()=>{ cleanup(); reject('no_ad'); };
+    const onClosed    = ()=>{ if(!completed){ cleanup(); reject('closed_early'); } };
+    function cleanup(){
+      adexiumInstance.off('adReceived', onReceived);
+      adexiumInstance.off('adPlaybackCompleted', onCompleted);
+      adexiumInstance.off('noAdFound', onNoAd);
+      adexiumInstance.off('adClosed', onClosed);
+    }
+    adexiumInstance.on('adReceived', onReceived);
+    adexiumInstance.on('adPlaybackCompleted', onCompleted);
+    adexiumInstance.on('noAdFound', onNoAd);
+    adexiumInstance.on('adClosed', onClosed);
+    adexiumInstance.requestAd('interstitial');
+  });
+}
+
+// Shows GigaPub first, then Adexium — only if GigaPub actually completed.
+// Resolves once BOTH ads have finished; rejects (no reward) if either one
+// fails, is skipped, or isn't loaded.
+async function runAdChain(){
+  await showGigaAd();
+  await showAdexiumAd();
+}
+
+// Local 5-second simulator — only used as a last-resort fallback when
+// NEITHER ad network's script has loaded (e.g. testing outside Telegram
+// or before you've filled in your real GigaPub project id).
+function runFallbackAdModal(onDone){
+  const modal=document.getElementById('adModal'); modal.classList.add('open');
+  let sec=5; document.getElementById('adCountdown').textContent=sec;
+  const iv=setInterval(()=>{
+    sec--; document.getElementById('adCountdown').textContent=sec;
+    if(sec<=0){ clearInterval(iv); modal.classList.remove('open'); onDone(); }
+  },1000);
+}
+
 function creditAd(){
   checkAdPeriod();
   S.adsWatchedToday++; S.totalWatched++;
@@ -539,22 +591,28 @@ function creditAd(){
   save(); renderHome();
   showToast('checkCircle',`+$${AD_REWARD.toFixed(2)} earned`);
 }
-function watchAd(){
+
+async function watchAd(){
   checkAdPeriod();
   if(adWatching || S.adsWatchedToday>=AD_LIMIT) return;
-  if(AdController){
-    adWatching=true;
-    AdController.show().then(()=>{ adWatching=false; creditAd(); })
-      .catch((r)=>{ adWatching=false; if(r?.error) console.warn(r.description); });
+  adWatching = true;
+
+  const bothMissing = typeof window.showGiga !== 'function' && !adexiumInstance;
+  if(bothMissing){
+    // Dev/testing fallback — no live ad SDKs loaded at all
+    runFallbackAdModal(()=>{ adWatching=false; creditAd(); });
     return;
   }
-  adWatching=true;
-  const modal=document.getElementById('adModal'); modal.classList.add('open');
-  let sec=5; document.getElementById('adCountdown').textContent=sec;
-  const iv=setInterval(()=>{
-    sec--; document.getElementById('adCountdown').textContent=sec;
-    if(sec<=0){ clearInterval(iv); modal.classList.remove('open'); adWatching=false; creditAd(); }
-  },1000);
+
+  try{
+    await runAdChain();       // GigaPub, then Adexium — in that order
+    adWatching = false;
+    creditAd();                // reward given ONCE, only after both finished
+  }catch(err){
+    adWatching = false;
+    console.warn('Ad chain incomplete, no reward given:', err);
+    showToast('alert','Ad unavailable — please try again');
+  }
 }
 function popupAd(){ watchAd(); }
 function joinChannel(){ window.open('https://t.me/Earn_Nova1','_blank'); }
@@ -592,18 +650,16 @@ function doWebTask(id){
   };
 
   if(task.type==='ad'){
-    // Placeholder ad slot — reuses the same AdController as the Home watch-ad
-    // button. Swap in a dedicated blockId per task once real ad-network
-    // codes are ready for each of the 9 slots.
-    if(AdController){
-      AdController.show().then(finish).catch(()=>{});
+    // Uses the same GigaPub → Adexium chain as the Home Watch Ad button:
+    // both ads must complete before this task counts as done.
+    const bothMissing = typeof window.showGiga !== 'function' && !adexiumInstance;
+    if(bothMissing){
+      runFallbackAdModal(finish);
     } else {
-      const modal=document.getElementById('adModal'); modal.classList.add('open');
-      let sec=5; document.getElementById('adCountdown').textContent=sec;
-      const iv=setInterval(()=>{
-        sec--; document.getElementById('adCountdown').textContent=sec;
-        if(sec<=0){ clearInterval(iv); modal.classList.remove('open'); finish(); }
-      },1000);
+      runAdChain().then(finish).catch((err)=>{
+        console.warn('Web task ad chain incomplete:', err);
+        showToast('alert','Ad unavailable — please try again');
+      });
     }
     return;
   }
