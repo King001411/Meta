@@ -553,20 +553,9 @@ function describeErr(e){
   return typeof e==='string' ? e : (e?.message || e?.description || JSON.stringify(e) || 'rejected with no reason');
 }
 async function showGigaAd(){
-  // First try the SDK as-is (no reload) — this is the normal, stable path.
-  if(typeof window.showGiga === 'function'){
-    try{
-      await window.showGiga();
-      return; // success, no reload needed
-    }catch(e){
-      console.warn('GigaPub first attempt failed, retrying with a fresh script load:', e);
-    }
-  }
-  // Only reload the script (fresh SDK instance) if the direct call was
-  // missing or failed — this is the retry path for "only works once".
   const loaded = await reloadGigaScript();
   if(!loaded){ throw 'GigaPub: script failed to load (network/blocked)'; }
-  if(typeof window.showGiga !== 'function'){ throw 'GigaPub: showGiga() not defined after reload'; }
+  if(typeof window.showGiga !== 'function'){ throw 'GigaPub: showGiga() not defined after script load'; }
   try{
     await window.showGiga();
   }catch(e){
@@ -600,13 +589,18 @@ function showAdexiumAd(){
   });
 }
 
-// Shows GigaPub, then Adexium, back to back — no artificial delay.
-// Resolves once BOTH ads have finished; rejects (no reward) if either one
-// fails, is skipped, or isn't loaded. The rejection reason is a readable
-// string so it can be shown directly to you for debugging.
+// GigaPub is required — if it fails, no reward (throws, chain rejects).
+// Adexium is best-effort: if it has no ad available or isn't loaded, we
+// still show it a try, but we do NOT block the reward on it — the user
+// already watched a real ad (GigaPub) and shouldn't be penalized for
+// Adexium's inventory being empty on their end.
 async function runAdChain(){
   await showGigaAd();
-  await showAdexiumAd();
+  try{
+    await showAdexiumAd();
+  }catch(err){
+    console.warn('Adexium unavailable, continuing with GigaPub-only reward:', err);
+  }
 }
 
 // Local 5-second simulator — only used as a last-resort fallback when
