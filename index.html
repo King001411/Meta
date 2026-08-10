@@ -549,14 +549,28 @@ function reloadGigaScript(){
 }
 
 // --- Ad #1: GigaPub ---
+function describeErr(e){
+  return typeof e==='string' ? e : (e?.message || e?.description || JSON.stringify(e) || 'rejected with no reason');
+}
 async function showGigaAd(){
+  // First try the SDK as-is (no reload) — this is the normal, stable path.
+  if(typeof window.showGiga === 'function'){
+    try{
+      await window.showGiga();
+      return; // success, no reload needed
+    }catch(e){
+      console.warn('GigaPub first attempt failed, retrying with a fresh script load:', e);
+    }
+  }
+  // Only reload the script (fresh SDK instance) if the direct call was
+  // missing or failed — this is the retry path for "only works once".
   const loaded = await reloadGigaScript();
   if(!loaded){ throw 'GigaPub: script failed to load (network/blocked)'; }
-  if(typeof window.showGiga !== 'function'){ throw 'GigaPub: showGiga() not defined after script load'; }
+  if(typeof window.showGiga !== 'function'){ throw 'GigaPub: showGiga() not defined after reload'; }
   try{
     await window.showGiga();
   }catch(e){
-    throw 'GigaPub: ' + (typeof e==='string' ? e : (e?.message || e?.description || JSON.stringify(e) || 'rejected with no reason'));
+    throw 'GigaPub: ' + describeErr(e);
   }
 }
 
