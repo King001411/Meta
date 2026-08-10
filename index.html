@@ -624,32 +624,34 @@ function showAdsGalaxyAd(){
 
 // Order: Adexium → GigaPub → tads.me → AdsGalaxy — all four are shown
 // every time, in this exact order, for max ad revenue exposure.
-// REWARD RULE: Adexium AND AdsGalaxy must BOTH succeed for the reward.
-// GigaPub and Tads.me are shown too, but are bonus/best-effort only — if
-// they fail or have no ad, that's fine and doesn't block the reward.
+// REWARD RULE: reward is given as soon as the user has actually watched AT
+// LEAST ONE real ad from any of the four. Requiring specific networks kept
+// breaking the reward (e.g. Adexium alone returns noAdFound often) even
+// when the user genuinely watched other ads — so no single network is
+// required anymore; any real ad view counts.
 // Returns a results object like {Adexium:'ok', GigaPub:'GigaPub: ...reason'}
 // so the exact per-network outcome can be shown/inspected, not just guessed.
 async function runAdChain(){
   const results = {};
-  let adexiumOk = false, galaxyOk = false;
 
-  try{ await showAdexiumAd(); results.Adexium = 'ok'; adexiumOk = true; }
+  try{ await showAdexiumAd(); results.Adexium = 'ok'; }
   catch(err){ results.Adexium = String(err); console.warn('Adexium unavailable:', err); }
 
   try{ await showGigaAd(); results.GigaPub = 'ok'; }
-  catch(err){ results.GigaPub = String(err); console.warn('GigaPub unavailable (bonus only, not required):', err); }
+  catch(err){ results.GigaPub = String(err); console.warn('GigaPub unavailable:', err); }
 
   try{ await showTadsAd(); results['Tads.me'] = 'ok'; }
-  catch(err){ results['Tads.me'] = String(err); console.warn('Tads.me unavailable (bonus only, not required):', err); }
+  catch(err){ results['Tads.me'] = String(err); console.warn('Tads.me unavailable:', err); }
 
-  try{ await showAdsGalaxyAd(); results.AdsGalaxy = 'ok'; galaxyOk = true; }
+  try{ await showAdsGalaxyAd(); results.AdsGalaxy = 'ok'; }
   catch(err){ results.AdsGalaxy = String(err); console.warn('AdsGalaxy unavailable:', err); }
 
   window.__lastAdResults = results; // inspect anytime via console: window.__lastAdResults
   console.table(results);
 
-  if(!(adexiumOk && galaxyOk)){
-    throw 'Reward requires both Adexium and AdsGalaxy: ' + JSON.stringify(results);
+  const anySuccess = Object.values(results).some(v=>v==='ok');
+  if(!anySuccess){
+    throw 'No ad was available from any network: ' + JSON.stringify(results);
   }
   return results;
 }
