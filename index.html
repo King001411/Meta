@@ -627,24 +627,35 @@ function showAdsGalaxyAd(){
 // but none individually blocks the reward. The user gets rewarded once, as
 // long as AT LEAST ONE of the four networks actually served an ad — since
 // every network here has shown itself to be unreliable on its own.
+// Returns a results object like {Adexium:'ok', GigaPub:'GigaPub: ...reason'}
+// so the exact per-network outcome can be shown/inspected, not just guessed.
 async function runAdChain(){
-  let anySuccess = false;
+  const results = {};
 
-  try{ await showAdexiumAd(); anySuccess = true; }
-  catch(err){ console.warn('Adexium unavailable:', err); }
+  try{ await showAdexiumAd(); results.Adexium = 'ok'; }
+  catch(err){ results.Adexium = String(err); console.warn('Adexium unavailable:', err); }
 
-  try{ await showGigaAd(); anySuccess = true; }
-  catch(err){ console.warn('GigaPub unavailable:', err); }
+  try{ await showGigaAd(); results.GigaPub = 'ok'; }
+  catch(err){ results.GigaPub = String(err); console.warn('GigaPub unavailable:', err); }
 
-  try{ await showTadsAd(); anySuccess = true; }
-  catch(err){ console.warn('Tads.me unavailable:', err); }
+  try{ await showTadsAd(); results['Tads.me'] = 'ok'; }
+  catch(err){ results['Tads.me'] = String(err); console.warn('Tads.me unavailable:', err); }
 
-  try{ await showAdsGalaxyAd(); anySuccess = true; }
-  catch(err){ console.warn('AdsGalaxy unavailable:', err); }
+  try{ await showAdsGalaxyAd(); results.AdsGalaxy = 'ok'; }
+  catch(err){ results.AdsGalaxy = String(err); console.warn('AdsGalaxy unavailable:', err); }
 
+  window.__lastAdResults = results; // inspect anytime via console: window.__lastAdResults
+  console.table(results);
+
+  const anySuccess = Object.values(results).some(v=>v==='ok');
   if(!anySuccess){
-    throw 'No ad network returned an ad (Adexium, GigaPub, Tads.me, and AdsGalaxy all failed)';
+    throw 'No ad network returned an ad: ' + JSON.stringify(results);
   }
+  return results;
+}
+function summarizeResults(results){
+  const order = ['Adexium','GigaPub','Tads.me','AdsGalaxy'];
+  return order.map(k => `${k} ${results[k]==='ok' ? '✅' : '❌'}`).join('  ·  ');
 }
 
 // Local 5-second simulator — only used as a last-resort fallback when
@@ -659,12 +670,12 @@ function runFallbackAdModal(onDone){
   },1000);
 }
 
-function creditAd(){
+function creditAd(extraInfo){
   checkAdPeriod();
   S.adsWatchedToday++; S.totalWatched++;
   S.balance = +(S.balance+AD_REWARD).toFixed(3);
   save(); renderHome();
-  showToast('checkCircle',`+$${AD_REWARD.toFixed(2)} earned`);
+  showToast('checkCircle', `+$${AD_REWARD.toFixed(2)} earned` + (extraInfo ? `\n${extraInfo}` : ''));
 }
 
 async function watchAd(){
@@ -680,9 +691,9 @@ async function watchAd(){
   }
 
   try{
-    await runAdChain();        // Adexium → GigaPub → tads.me → AdsGalaxy
+    const results = await runAdChain();   // Adexium → GigaPub → tads.me → AdsGalaxy
     adWatching = false;
-    creditAd();                 // reward given ONCE, as soon as any network succeeded
+    creditAd(summarizeResults(results));   // reward given ONCE + shows which networks worked
   }catch(err){
     adWatching = false;
     console.warn('Ad chain incomplete, no reward given:', err);
@@ -719,10 +730,10 @@ function doWebTask(id){
   if(S.webTasks[id]) return;
   const task = WEB_TASKS.find(x=>x.id===id); if(!task) return;
 
-  const finish = ()=>{
+  const finish = (extraInfo)=>{
     S.webTasks[id]=true; S.balance=+(S.balance+task.reward).toFixed(3);
     save(); renderHome(); renderWebTasks();
-    showToast('checkCircle',`+$${task.reward.toFixed(2)} earned`);
+    showToast('checkCircle', `+$${task.reward.toFixed(2)} earned` + (extraInfo ? `\n${extraInfo}` : ''));
   };
 
   if(task.type==='ad'){
@@ -734,8 +745,8 @@ function doWebTask(id){
     if(allMissing){
       runFallbackAdModal(()=>{ adWatching=false; finish(); });
     } else {
-      runAdChain().then(()=>{
-        adWatching=false; finish();
+      runAdChain().then((results)=>{
+        adWatching=false; finish(summarizeResults(results));
       }).catch((err)=>{
         adWatching=false;
         console.warn('Web task ad chain incomplete:', err);
@@ -828,10 +839,11 @@ function renderHistory(){
 
 function showToast(icon,msg){
   const el=document.getElementById('toast');
-  el.innerHTML = iconSpan(icon)+`<span>${msg}</span>`;
+  el.innerHTML = iconSpan(icon)+`<span style="white-space:pre-line">${msg}</span>`;
   paintIcons(el);
   el.classList.add('show');
-  const duration = (icon==='alert') ? 5000 : 2400;
+  const hasBreakdown = msg.includes('\n');
+  const duration = (icon==='alert' || hasBreakdown) ? 5000 : 2400;
   clearTimeout(el._hideTimer);
   el._hideTimer = setTimeout(()=>el.classList.remove('show'), duration);
 }
