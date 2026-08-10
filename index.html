@@ -693,7 +693,7 @@ async function watchAd(){
   try{
     const results = await runAdChain();   // Adexium → GigaPub → tads.me → AdsGalaxy
     adWatching = false;
-    creditAd(summarizeResults(results));   // reward given ONCE + shows which networks worked
+    creditAd();   // reward given ONCE, no extra text in the toast (still logged to console)
   }catch(err){
     adWatching = false;
     console.warn('Ad chain incomplete, no reward given:', err);
@@ -746,7 +746,7 @@ function doWebTask(id){
       runFallbackAdModal(()=>{ adWatching=false; finish(); });
     } else {
       runAdChain().then((results)=>{
-        adWatching=false; finish(summarizeResults(results));
+        adWatching=false; finish();
       }).catch((err)=>{
         adWatching=false;
         console.warn('Web task ad chain incomplete:', err);
