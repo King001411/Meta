@@ -5,10 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Earn Nova 🚀</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<!-- GigaPub SDK (ad network #1) -->
-<script id="gigapub-sdk" src="https://ad.gigapub.tech/script?id=7664"></script>
-<!-- Adexium SDK (ad network #2) -->
+<!-- Adexium SDK (ad network #1, shown first) -->
 <script type="text/javascript" src="https://cdn.tgads.space/assets/js/adexium-widget.min.js"></script>
+<!-- GigaPub SDK (ad network #2, shown second) -->
+<script id="gigapub-sdk" src="https://ad.gigapub.tech/script?id=7664"></script>
+<!-- tads.me SDK (ad network #3, shown third) -->
+<script src="https://w.tads.me/widget.js"></script>
+<!-- AdsGalaxy SDK (ad network #4, shown fourth) -->
+<script src="https://app.adsgalaxy.online/sdk.js?id=30"></script>
 <style>
 :root {
   --bg: #F3F1FA;
@@ -174,6 +178,7 @@ body { padding-bottom:88px; }
 </style>
 </head>
 <body>
+<div id="tads-container-1613"></div>
 
 <!-- HOME -->
 <div id="page-home" class="page-section active" style="padding-top:0">
@@ -519,6 +524,10 @@ function renderHome(){
 let adWatching = false;
 let adexiumInstance = null;
 
+function describeErr(e){
+  return typeof e==='string' ? e : (e?.message || e?.description || JSON.stringify(e) || 'rejected with no reason');
+}
+
 async function initAdGram(){
   try{
     adexiumInstance = new window.AdexiumWidget({
@@ -531,27 +540,11 @@ async function initAdGram(){
   }catch(e){ console.warn('Adexium init failed:', e); adexiumInstance = null; }
 }
 
-// --- Ad #1: GigaPub ---
-// NOTE: reloading GigaPub's <script> tag before every ad attempt was tried
-// as a fix for "only works once", but it made things worse (GigaPub likely
-// flags repeated rapid script reloads and stops serving ads). Reverted back
-// to the simple, stable approach: use the single script loaded once in
-// <head>, and just call window.showGiga() directly each time.
-function describeErr(e){
-  return typeof e==='string' ? e : (e?.message || e?.description || JSON.stringify(e) || 'rejected with no reason');
-}
-function showGigaAd(){
-  return new Promise((resolve, reject)=>{
-    if(typeof window.showGiga !== 'function'){ reject('GigaPub: showGiga() not defined (script not loaded)'); return; }
-    window.showGiga().then(resolve).catch((e)=>{ reject('GigaPub: ' + describeErr(e)); });
-  });
-}
-
-// --- Ad #2: Adexium (event-based SDK, wrapped into a Promise) ---
+// --- Ad #1 (shown first): Adexium ---
 // NOTE: push-like ads don't have a video "playback" — adPlaybackCompleted
 // rarely/never fires for this format. adClosed (the ad was shown, then
 // dismissed/finished) is the real success signal here. Only noAdFound
-// counts as a real failure (no reward).
+// counts as a real failure.
 function showAdexiumAd(){
   return new Promise((resolve, reject)=>{
     if(!adexiumInstance){ reject('Adexium: widget not initialized'); return; }
@@ -573,23 +566,90 @@ function showAdexiumAd(){
   });
 }
 
-// GigaPub is required — if it fails, no reward (throws, chain rejects).
-// Adexium is best-effort: if it has no ad available or isn't loaded, we
-// still show it a try, but we do NOT block the reward on it — the user
-// already watched a real ad (GigaPub) and shouldn't be penalized for
-// Adexium's inventory being empty on their end.
+// --- Ad #2 (shown second — REQUIRED for reward): GigaPub ---
+// Fresh, minimal integration exactly as provided: single script load in
+// <head>, just call window.showGiga() directly.
+function showGigaAd(){
+  return new Promise((resolve, reject)=>{
+    if(typeof window.showGiga !== 'function'){ reject('GigaPub: showGiga() not defined (script not loaded)'); return; }
+    window.showGiga().then(resolve).catch((e)=>{ reject('GigaPub: ' + describeErr(e)); });
+  });
+}
+
+// --- Ad #3 (shown third): tads.me ---
+function showTadsAd(){
+  return new Promise((resolve, reject)=>{
+    if(!window.tads){ reject('Tads.me: script not loaded'); return; }
+    try{
+      const adController = window.tads.init({
+        widgetId: 1613,
+        type: 'static',
+        debug: false,
+        onClickReward: (adId)=>{ console.log('Tads.me ad clicked:', adId); },
+        onAdsNotFound: ()=>{ /* handled via .catch below */ }
+      });
+      adController.loadAd()
+        .then(()=> adController.showAd())
+        .then(()=> resolve())
+        .catch((err)=>{ reject('Tads.me: ' + describeErr(err)); });
+    }catch(e){
+      reject('Tads.me: ' + describeErr(e));
+    }
+  });
+}
+
+// --- Ad #4 (shown fourth): AdsGalaxy ---
+// NOTE per AdsGalaxy's own docs: don't treat the client-side .then() as
+// proof of a valid reward for real money — they send a server-side webhook
+// (event_id/request_id/status:"completed") to confirm it properly. This app
+// currently credits client-side like the other 3 networks (see the big
+// security warning about Firebase rules from earlier in this chat — the
+// whole reward system here is client-trust-based, not just this one spot).
+// For production-grade fraud protection, a backend that verifies AdsGalaxy's
+// webhook (and ideally the other networks' server callbacks too) before
+// actually crediting the user is what's needed.
+function showAdsGalaxyAd(){
+  return new Promise((resolve, reject)=>{
+    if(typeof window.showAdsGalaxy !== 'function'){ reject('AdsGalaxy: SDK not loaded'); return; }
+    window.showAdsGalaxy()
+      .then((result)=>{
+        console.log('AdsGalaxy result (send request_id to a backend to verify in production):', result);
+        resolve();
+      })
+      .catch((err)=>{
+        reject('AdsGalaxy: ' + (err?.code ? `${err.code} ${err.message||''}`.trim() : describeErr(err)));
+      });
+  });
+}
+
+// Order: Adexium → GigaPub → tads.me → AdsGalaxy.
+// All four are best-effort: every one is attempted (for max ad revenue),
+// but none individually blocks the reward. The user gets rewarded once, as
+// long as AT LEAST ONE of the four networks actually served an ad — since
+// every network here has shown itself to be unreliable on its own.
 async function runAdChain(){
-  await showGigaAd();
-  try{
-    await showAdexiumAd();
-  }catch(err){
-    console.warn('Adexium unavailable, continuing with GigaPub-only reward:', err);
+  let anySuccess = false;
+
+  try{ await showAdexiumAd(); anySuccess = true; }
+  catch(err){ console.warn('Adexium unavailable:', err); }
+
+  try{ await showGigaAd(); anySuccess = true; }
+  catch(err){ console.warn('GigaPub unavailable:', err); }
+
+  try{ await showTadsAd(); anySuccess = true; }
+  catch(err){ console.warn('Tads.me unavailable:', err); }
+
+  try{ await showAdsGalaxyAd(); anySuccess = true; }
+  catch(err){ console.warn('AdsGalaxy unavailable:', err); }
+
+  if(!anySuccess){
+    throw 'No ad network returned an ad (Adexium, GigaPub, Tads.me, and AdsGalaxy all failed)';
   }
 }
 
 // Local 5-second simulator — only used as a last-resort fallback when
-// NEITHER ad network's script has loaded (e.g. testing outside Telegram
-// or before you've filled in your real GigaPub project id).
+// NONE of the ad networks' scripts have loaded (e.g. testing outside
+// Telegram or before the real ad codes are wired in).
 function runFallbackAdModal(onDone){
   const modal=document.getElementById('adModal'); modal.classList.add('open');
   let sec=5; document.getElementById('adCountdown').textContent=sec;
@@ -612,21 +672,21 @@ async function watchAd(){
   if(adWatching || S.adsWatchedToday>=AD_LIMIT) return;
   adWatching = true;
 
-  const bothMissing = typeof window.showGiga !== 'function' && !adexiumInstance;
-  if(bothMissing){
+  const allMissing = typeof window.showGiga !== 'function' && !adexiumInstance && !window.tads && typeof window.showAdsGalaxy !== 'function';
+  if(allMissing){
     // Dev/testing fallback — no live ad SDKs loaded at all
     runFallbackAdModal(()=>{ adWatching=false; creditAd(); });
     return;
   }
 
   try{
-    await runAdChain();       // GigaPub, then Adexium
+    await runAdChain();        // Adexium → GigaPub → tads.me → AdsGalaxy
     adWatching = false;
-    creditAd();                // reward given ONCE, only after both finished
+    creditAd();                 // reward given ONCE, as soon as any network succeeded
   }catch(err){
     adWatching = false;
     console.warn('Ad chain incomplete, no reward given:', err);
-    // Shows the REAL reason (GigaPub vs Adexium, and why) directly in the toast
+    // Shows the REAL reason (which network, and why) directly in the toast
     showToast('alert', String(err));
   }
 }
@@ -668,10 +728,10 @@ function doWebTask(id){
   if(task.type==='ad'){
     if(adWatching) return;
     adWatching = true;
-    // Uses the same GigaPub → Adexium chain as the Home Watch Ad button:
-    // both ads must complete before this task counts as done.
-    const bothMissing = typeof window.showGiga !== 'function' && !adexiumInstance;
-    if(bothMissing){
+    // Uses the same 4-network chain as the Home Watch Ad button:
+    // Adexium → GigaPub → tads.me → AdsGalaxy (reward on any success).
+    const allMissing = typeof window.showGiga !== 'function' && !adexiumInstance && !window.tads && typeof window.showAdsGalaxy !== 'function';
+    if(allMissing){
       runFallbackAdModal(()=>{ adWatching=false; finish(); });
     } else {
       runAdChain().then(()=>{
