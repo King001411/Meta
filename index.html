@@ -6,7 +6,7 @@
 <title>Earn Nova 🚀</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <!-- GigaPub SDK (ad network #1) -->
-<script src="https://ad.gigapub.tech/script?id=7664"></script>
+<script id="gigapub-sdk" src="https://ad.gigapub.tech/script?id=7664"></script>
 <!-- Adexium SDK (ad network #2) -->
 <script type="text/javascript" src="https://cdn.tgads.space/assets/js/adexium-widget.min.js"></script>
 <style>
@@ -161,9 +161,9 @@ body { padding-bottom:88px; }
 .ad-mtitle { font-size:16px; font-weight:800; margin-top:6px; }
 .ad-msub { font-size:12.5px; color:var(--text3); margin-top:6px; }
 
-.toast { position:fixed; bottom:96px; left:50%; transform:translateX(-50%) translateY(16px); background:var(--text); color:#fff; padding:11px 20px; border-radius:13px; font-size:13.5px; font-weight:700; opacity:0; transition:.3s; z-index:9999; white-space:nowrap; display:flex; align-items:center; gap:8px; }
-.toast .ic { width:15px; height:15px; }
-.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+.toast { position:fixed; bottom:96px; left:16px; right:16px; background:var(--text); color:#fff; padding:12px 18px; border-radius:13px; font-size:13px; font-weight:700; opacity:0; transition:.3s; z-index:9999; display:flex; align-items:flex-start; gap:8px; transform:translateY(16px); line-height:1.4; }
+.toast .ic { width:15px; height:15px; flex-shrink:0; margin-top:1px; }
+.toast.show { opacity:1; transform:translateY(0); }
 
 /* BOTTOM NAV — 5 items: Home, Withdraw, History, Invite, Web Task */
 .bottom-nav { position:fixed; bottom:0; left:0; right:0; z-index:200; background:#fff; border-top:1px solid var(--border); display:flex; height:74px; }
@@ -279,15 +279,6 @@ body { padding-bottom:88px; }
     <div class="ad-count" id="adCountdown">5</div>
     <div class="ad-mtitle">Watching Ad...</div>
     <div class="ad-msub">Don't close — earn $0.10 on completion</div>
-  </div>
-</div>
-
-<!-- COOLDOWN MODAL -->
-<div class="ad-modal" id="cooldownModal">
-  <div class="ad-modal-box">
-    <div class="ad-count" id="cooldownCount">5</div>
-    <div class="ad-mtitle">Please Wait</div>
-    <div class="ad-msub" id="cooldownMsg">Please wait 5 seconds before the next ad</div>
   </div>
 </div>
 
@@ -528,8 +519,6 @@ function renderHome(){
 let adWatching = false;
 let adexiumInstance = null;
 
-// GigaPub is ready as soon as its <script> tag (in <head>) finishes loading —
-// it exposes window.showGiga() globally, no init() call needed.
 async function initAdGram(){
   try{
     adexiumInstance = new window.AdexiumWidget({
@@ -542,12 +531,33 @@ async function initAdGram(){
   }catch(e){ console.warn('Adexium init failed:', e); adexiumInstance = null; }
 }
 
-// --- Ad #1: GigaPub ---
-function showGigaAd(){
-  return new Promise((resolve, reject)=>{
-    if(typeof window.showGiga !== 'function'){ reject('gigapub_not_loaded'); return; }
-    window.showGiga().then(resolve).catch(reject);
+// GigaPub's SDK only seems to serve one ad per script load — so before every
+// single watch attempt we remove the old <script> tag and inject a brand
+// new one (with a cache-busting query param) to force a completely fresh
+// SDK instance. This is the fix attempt for "GigaPub only works once".
+function reloadGigaScript(){
+  return new Promise((resolve)=>{
+    const old = document.getElementById('gigapub-sdk');
+    if(old) old.remove();
+    const s = document.createElement('script');
+    s.id = 'gigapub-sdk';
+    s.src = `https://ad.gigapub.tech/script?id=7664&_ts=${Date.now()}`;
+    s.onload = ()=>resolve(true);
+    s.onerror = ()=>resolve(false);
+    document.head.appendChild(s);
   });
+}
+
+// --- Ad #1: GigaPub ---
+async function showGigaAd(){
+  const loaded = await reloadGigaScript();
+  if(!loaded){ throw 'GigaPub: script failed to load (network/blocked)'; }
+  if(typeof window.showGiga !== 'function'){ throw 'GigaPub: showGiga() not defined after script load'; }
+  try{
+    await window.showGiga();
+  }catch(e){
+    throw 'GigaPub: ' + (typeof e==='string' ? e : (e?.message || e?.description || JSON.stringify(e) || 'rejected with no reason'));
+  }
 }
 
 // --- Ad #2: Adexium (event-based SDK, wrapped into a Promise) ---
@@ -557,10 +567,10 @@ function showGigaAd(){
 // counts as a real failure (no reward).
 function showAdexiumAd(){
   return new Promise((resolve, reject)=>{
-    if(!adexiumInstance){ reject('adexium_not_loaded'); return; }
+    if(!adexiumInstance){ reject('Adexium: widget not initialized'); return; }
     const onReceived  = (ad)=>{ adexiumInstance.displayAd(ad); };
     const onCompleted = ()=>{ cleanup(); resolve(); };
-    const onNoAd      = ()=>{ cleanup(); reject('no_ad'); };
+    const onNoAd      = ()=>{ cleanup(); reject('Adexium: no ad available (noAdFound)'); };
     const onClosed    = ()=>{ cleanup(); resolve(); };
     function cleanup(){
       adexiumInstance.off('adReceived', onReceived);
@@ -576,16 +586,12 @@ function showAdexiumAd(){
   });
 }
 
-function wait(ms){ return new Promise(resolve=>setTimeout(resolve, ms)); }
-
-// Shows GigaPub first, waits 5 seconds (lets GigaPub's SDK fully settle
-// before the next ad request — this pause is also what should help with
-// GigaPub not returning a new ad back-to-back), then shows Adexium.
+// Shows GigaPub, then Adexium, back to back — no artificial delay.
 // Resolves once BOTH ads have finished; rejects (no reward) if either one
-// fails, is skipped, or isn't loaded.
+// fails, is skipped, or isn't loaded. The rejection reason is a readable
+// string so it can be shown directly to you for debugging.
 async function runAdChain(){
   await showGigaAd();
-  await showCooldown(5, 'Loading next ad in');
   await showAdexiumAd();
 }
 
@@ -601,32 +607,6 @@ function runFallbackAdModal(onDone){
   },1000);
 }
 
-// Shows a "Please Wait N seconds..." popup and resolves once it counts down
-// to zero. Used both mid-chain (between GigaPub and Adexium) and after a
-// full attempt finishes, to space out ad requests.
-let adCooldownActive = false;
-function showCooldown(seconds, label){
-  return new Promise(resolve=>{
-    adCooldownActive = true;
-    const modal = document.getElementById('cooldownModal');
-    document.getElementById('cooldownMsg').textContent = `${label||'Please wait'} ${seconds} seconds`;
-    modal.classList.add('open');
-    let sec = seconds;
-    document.getElementById('cooldownCount').textContent = sec;
-    const iv = setInterval(()=>{
-      sec--;
-      document.getElementById('cooldownCount').textContent = sec;
-      document.getElementById('cooldownMsg').textContent = `${label||'Please wait'} ${sec>0?sec:0} seconds`;
-      if(sec<=0){
-        clearInterval(iv);
-        modal.classList.remove('open');
-        adCooldownActive = false;
-        resolve();
-      }
-    },1000);
-  });
-}
-
 function creditAd(){
   checkAdPeriod();
   S.adsWatchedToday++; S.totalWatched++;
@@ -637,29 +617,25 @@ function creditAd(){
 
 async function watchAd(){
   checkAdPeriod();
-  if(adWatching || adCooldownActive || S.adsWatchedToday>=AD_LIMIT) return;
+  if(adWatching || S.adsWatchedToday>=AD_LIMIT) return;
   adWatching = true;
 
   const bothMissing = typeof window.showGiga !== 'function' && !adexiumInstance;
   if(bothMissing){
     // Dev/testing fallback — no live ad SDKs loaded at all
-    runFallbackAdModal(async ()=>{
-      adWatching=false; creditAd();
-      await showCooldown(5, 'Please wait');
-    });
+    runFallbackAdModal(()=>{ adWatching=false; creditAd(); });
     return;
   }
 
   try{
-    await runAdChain();       // GigaPub → 5s pause → Adexium
+    await runAdChain();       // GigaPub, then Adexium
     adWatching = false;
     creditAd();                // reward given ONCE, only after both finished
-    await showCooldown(5, 'Please wait');   // cooldown before the next click
   }catch(err){
     adWatching = false;
     console.warn('Ad chain incomplete, no reward given:', err);
-    showToast('alert','Ad unavailable — please try again');
-    await showCooldown(5, 'Please wait');   // still pause, to avoid hammering the ad networks
+    // Shows the REAL reason (GigaPub vs Adexium, and why) directly in the toast
+    showToast('alert', String(err));
   }
 }
 function popupAd(){ watchAd(); }
@@ -688,7 +664,7 @@ function renderWebTasks(){
   paintIcons();
 }
 function doWebTask(id){
-  if(S.webTasks[id] || adCooldownActive) return;
+  if(S.webTasks[id]) return;
   const task = WEB_TASKS.find(x=>x.id===id); if(!task) return;
 
   const finish = ()=>{
@@ -704,19 +680,14 @@ function doWebTask(id){
     // both ads must complete before this task counts as done.
     const bothMissing = typeof window.showGiga !== 'function' && !adexiumInstance;
     if(bothMissing){
-      runFallbackAdModal(async ()=>{
-        adWatching=false; finish();
-        await showCooldown(5, 'Please wait');
-      });
+      runFallbackAdModal(()=>{ adWatching=false; finish(); });
     } else {
-      runAdChain().then(async ()=>{
+      runAdChain().then(()=>{
         adWatching=false; finish();
-        await showCooldown(5, 'Please wait');
-      }).catch(async (err)=>{
+      }).catch((err)=>{
         adWatching=false;
         console.warn('Web task ad chain incomplete:', err);
-        showToast('alert','Ad unavailable — please try again');
-        await showCooldown(5, 'Please wait');
+        showToast('alert', String(err));
       });
     }
     return;
@@ -808,7 +779,9 @@ function showToast(icon,msg){
   el.innerHTML = iconSpan(icon)+`<span>${msg}</span>`;
   paintIcons(el);
   el.classList.add('show');
-  setTimeout(()=>el.classList.remove('show'),2400);
+  const duration = (icon==='alert') ? 5000 : 2400;
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(()=>el.classList.remove('show'), duration);
 }
 
 // Admin console helpers
