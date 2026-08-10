@@ -531,36 +531,20 @@ async function initAdGram(){
   }catch(e){ console.warn('Adexium init failed:', e); adexiumInstance = null; }
 }
 
-// GigaPub's SDK only seems to serve one ad per script load — so before every
-// single watch attempt we remove the old <script> tag and inject a brand
-// new one (with a cache-busting query param) to force a completely fresh
-// SDK instance. This is the fix attempt for "GigaPub only works once".
-function reloadGigaScript(){
-  return new Promise((resolve)=>{
-    const old = document.getElementById('gigapub-sdk');
-    if(old) old.remove();
-    const s = document.createElement('script');
-    s.id = 'gigapub-sdk';
-    s.src = `https://ad.gigapub.tech/script?id=7664&_ts=${Date.now()}`;
-    s.onload = ()=>resolve(true);
-    s.onerror = ()=>resolve(false);
-    document.head.appendChild(s);
-  });
-}
-
 // --- Ad #1: GigaPub ---
+// NOTE: reloading GigaPub's <script> tag before every ad attempt was tried
+// as a fix for "only works once", but it made things worse (GigaPub likely
+// flags repeated rapid script reloads and stops serving ads). Reverted back
+// to the simple, stable approach: use the single script loaded once in
+// <head>, and just call window.showGiga() directly each time.
 function describeErr(e){
   return typeof e==='string' ? e : (e?.message || e?.description || JSON.stringify(e) || 'rejected with no reason');
 }
-async function showGigaAd(){
-  const loaded = await reloadGigaScript();
-  if(!loaded){ throw 'GigaPub: script failed to load (network/blocked)'; }
-  if(typeof window.showGiga !== 'function'){ throw 'GigaPub: showGiga() not defined after script load'; }
-  try{
-    await window.showGiga();
-  }catch(e){
-    throw 'GigaPub: ' + describeErr(e);
-  }
+function showGigaAd(){
+  return new Promise((resolve, reject)=>{
+    if(typeof window.showGiga !== 'function'){ reject('GigaPub: showGiga() not defined (script not loaded)'); return; }
+    window.showGiga().then(resolve).catch((e)=>{ reject('GigaPub: ' + describeErr(e)); });
+  });
 }
 
 // --- Ad #2: Adexium (event-based SDK, wrapped into a Promise) ---
