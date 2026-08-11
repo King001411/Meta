@@ -5,14 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Earn Nova 🚀</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<!-- Adexium SDK (ad network #1, shown first) -->
-<script type="text/javascript" src="https://cdn.tgads.space/assets/js/adexium-widget.min.js"></script>
-<!-- GigaPub SDK (ad network #2, shown second) -->
+<!-- GigaPub SDK (ad network #1) -->
 <script id="gigapub-sdk" src="https://ad.gigapub.tech/script?id=7664"></script>
-<!-- tads.me SDK (ad network #3, shown third) -->
-<script src="https://w.tads.me/widget.js"></script>
-<!-- AdsGalaxy SDK (ad network #4, shown fourth) -->
-<script src="https://app.adsgalaxy.online/sdk.js?id=30"></script>
+<!-- Adexium SDK (ad network #2) -->
+<script type="text/javascript" src="https://cdn.tgads.space/assets/js/adexium-widget.min.js"></script>
 <style>
 :root {
   --bg: #F3F1FA;
@@ -178,7 +174,6 @@ body { padding-bottom:88px; }
 </style>
 </head>
 <body>
-<div id="tads-container-1613"></div>
 
 <!-- HOME -->
 <div id="page-home" class="page-section active" style="padding-top:0">
@@ -332,6 +327,10 @@ function paintIcons(root){
 }
 function iconSpan(name,cls){ return `<span class="ic ${cls||''}">${iconHTML(name)}</span>`; }
 
+// type:'link'  -> opens the given URL, then marks done after a short delay
+// type:'ad'    -> plays an ad (same mechanic as the Home watch-ad button);
+//                  swap the AdController blockId per task once you have
+//                  separate ad-network placements/codes for each slot.
 const WEB_TASKS = [
   {id:'w1',icon:'send',name:'Join Our Channel',type:'link',link:'https://t.me/Earn_Nova1',reward:0.10},
   {id:'w2',icon:'play',name:'Watch Ad #1',type:'ad',reward:0.10},
@@ -347,7 +346,7 @@ const WEB_TASKS = [
 
 const AD_REWARD = 0.10;
 const AD_LIMIT = 60;
-const AD_PERIOD_MS = 10 * 60 * 60 * 1000;
+const AD_PERIOD_MS = 10 * 60 * 60 * 1000; // 10 hours
 const REFERRAL_REWARD = 2.00;
 const MIN_WITHDRAW = 35.00;
 
@@ -359,6 +358,16 @@ let S = {
   wasReferred:false, referredBy:null,
 };
 
+// ====== FIREBASE (Realtime Database) ======
+// All user data — balance, ads watched, referrals, task completions and
+// withdrawal history — lives at: {FIREBASE_URL}/users/{userId}.json
+// This is plain REST calls to the RTDB URL you gave me. NOTE: this only
+// works if your database rules allow public read/write (the Firebase
+// default "test mode" rules). That also means anyone could read or edit
+// any user's balance directly via the REST API — fine for getting this
+// running, but before real money is on the line you should lock down
+// rules (e.g. require Telegram-verified auth) or move writes behind a
+// Cloud Function. Happy to help set that up when you're ready.
 const FIREBASE_URL = 'https://meta-334b2-default-rtdb.firebaseio.com';
 
 async function fbGet(path){
@@ -388,6 +397,8 @@ function saveLocal(){
     localStorage.setItem('vp2_state',JSON.stringify({userId:S.userId,userName:S.userName,userPhoto:S.userPhoto}));
   }catch(e){}
 }
+// save() writes to the local cache immediately (instant UI) and pushes the
+// full user record to Firebase in the background (fire-and-forget).
 function save(){
   saveLocal();
   fbSet(`users/${S.userId}`, S);
@@ -402,9 +413,13 @@ async function init(){
   if(tgU){ S.userId=tgU.id; S.userName=tgU.first_name+(tgU.last_name?' '+tgU.last_name:''); S.userPhoto=tgU.photo_url||null; }
   else { if(!S.userId) S.userId=Math.floor(Math.random()*9000000+1000000); if(!S.userName) S.userName='Guest'; }
 
+  // 1) Paint instantly from local cache (fast, works offline)
   loadUserLocal();
   renderAll();
 
+  // 2) Firebase is the source of truth — pull the latest synced record
+  //    (this is what makes balances/referrals/history consistent across
+  //    every device the user opens the app from)
   const remote = await fbGet(`users/${S.userId}`);
   if(remote){ S = {...S, ...remote, userId:S.userId}; }
 
@@ -416,9 +431,11 @@ async function init(){
   renderAll();
   paintIcons();
   initAdGram();
-  setInterval(()=>{ checkAdPeriod(); renderHome(); }, 30000);
+  setInterval(()=>{ checkAdPeriod(); renderHome(); }, 30000); // re-check every 30s
 }
 
+// Rolling window: up to AD_LIMIT ads per AD_PERIOD_MS. Resets automatically
+// once the period has elapsed since it started (not a fixed daily reset).
 function checkAdPeriod(){
   const now = Date.now();
   if(!S.periodStart || (now - S.periodStart) >= AD_PERIOD_MS){
@@ -439,69 +456,37 @@ function formatCountdown(ms){
   return `New ads unlock in ${h}h ${m}m`;
 }
 
-// Referral crediting — reads/writes the referrer's record directly in
-// Firebase, so it works correctly across two different people's devices.
-//
-// DEBUG MODE: this version shows a toast + console logs at every step so
-// we can see exactly what's happening on the INVITED friend's phone —
-// whether start_param arrived at all, whether the Firebase write actually
-// succeeded, etc. Remove the showToast(...) debug lines once confirmed working.
+// Referral crediting — now reads/writes the referrer's record directly in
+// Firebase, so it works correctly across two different people's devices
+// (this is the real fix for the earlier localStorage-only limitation).
 async function checkReferral(){
   try{
     const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
-    console.log('[referral debug] start_param:', startParam, '| my userId:', S.userId, '| wasReferred:', S.wasReferred);
-
-    if(!startParam){
-      // Fires on every normal app open, not just invited ones — no debug
-      // toast needed here since there's nothing to report.
-      return;
+    if(startParam && startParam !== String(S.userId) && !S.referralCredited){
+      S.referredBy = startParam;
+      save();
+      const ok = await creditReferrer(startParam);
+      if(ok){ S.referralCredited = true; S.wasReferred = true; save(); }
     }
-
-    showToast('checkCircle', `[debug] start_param received: ${startParam}`);
-
-    if(startParam === String(S.userId)){
-      console.log('[referral debug] Ignored — startParam equals my own userId.');
-      showToast('alert', `[debug] start_param (${startParam}) matches your own ID — not counted`);
-      return;
-    }
-
-    if(S.wasReferred){
-      console.log('[referral debug] Already credited before (S.wasReferred = true) — skipping to prevent double credit.');
-      showToast('checkCircle', `[debug] Already marked as referred by ${S.referredBy} — skipping`);
-      return;
-    }
-
-    S.wasReferred = true; S.referredBy = startParam;
-    save();
-    const ok = await creditReferrer(startParam);
-    showToast(ok ? 'checkCircle' : 'alert', ok
-      ? `[debug] Referrer ${startParam} credited successfully ✅`
-      : `[debug] Failed to credit referrer ${startParam} ❌ (check console)`);
-  }catch(e){
-    console.warn('[referral debug] checkReferral threw:', e);
-    showToast('alert', `[debug] checkReferral error: ${describeErr ? describeErr(e) : e}`);
-  }
+  }catch(e){}
 }
 async function creditReferrer(referrerId){
   try{
     let ref = await fbGet(`users/${referrerId}`);
-    console.log('[referral debug] fetched referrer record for', referrerId, ':', ref);
     if(!ref){
       ref = {
         balance:0, adsWatchedToday:0, totalWatched:0, friendsCount:0, inviteEarned:0,
         webTasks:{}, history:[], userId:referrerId,
         userName:null, userPhoto:null, periodStart:null, wasReferred:false, referredBy:null,
       };
-      console.log('[referral debug] no existing record — creating a new one for referrer', referrerId);
     }
     ref.friendsCount = (ref.friendsCount||0)+1;
     ref.balance = +((ref.balance||0)+REFERRAL_REWARD).toFixed(3);
     ref.inviteEarned = +((ref.inviteEarned||0)+REFERRAL_REWARD).toFixed(3);
     const ok = await fbSet(`users/${referrerId}`, ref);
-    console.log('[referral debug] fbSet result:', ok, '| new friendsCount:', ref.friendsCount, '| new balance:', ref.balance);
-    if(String(S.userId)===String(referrerId)){ S.friendsCount=ref.friendsCount; S.balance=ref.balance; S.inviteEarned=ref.inviteEarned; save(); }
+    if(ok && String(S.userId)===String(referrerId)){ S.friendsCount=ref.friendsCount; S.balance=ref.balance; S.inviteEarned=ref.inviteEarned; save(); }
     return ok;
-  }catch(e){ console.warn('[referral debug] creditReferrer failed:', e); return false; }
+  }catch(e){ console.warn('creditReferrer failed:', e); return false; }
 }
 
 function renderAll(){ renderHeader(); renderHome(); renderInvite(); renderWithdraw(); renderHistory(); renderWebTasks(); }
@@ -536,20 +521,39 @@ function renderHome(){
 let adWatching = false;
 let adexiumInstance = null;
 
-function describeErr(e){
-  return typeof e==='string' ? e : (e?.message || e?.description || JSON.stringify(e) || 'rejected with no reason');
-}
-
 async function initAdGram(){
   try{
     adexiumInstance = new window.AdexiumWidget({
       wid: '902e0b02-566e-44ba-8364-814cb00ce962',
       adFormat: 'push-like',
       debug: false,
+      // Do NOT call adexiumInstance.autoMode() — we trigger ads manually
+      // (on the Watch Ad click) instead of letting them pop up on their own.
     });
   }catch(e){ console.warn('Adexium init failed:', e); adexiumInstance = null; }
 }
 
+// --- Ad #1: GigaPub ---
+// NOTE: reloading GigaPub's <script> tag before every ad attempt was tried
+// as a fix for "only works once", but it made things worse (GigaPub likely
+// flags repeated rapid script reloads and stops serving ads). Reverted back
+// to the simple, stable approach: use the single script loaded once in
+// <head>, and just call window.showGiga() directly each time.
+function describeErr(e){
+  return typeof e==='string' ? e : (e?.message || e?.description || JSON.stringify(e) || 'rejected with no reason');
+}
+function showGigaAd(){
+  return new Promise((resolve, reject)=>{
+    if(typeof window.showGiga !== 'function'){ reject('GigaPub: showGiga() not defined (script not loaded)'); return; }
+    window.showGiga().then(resolve).catch((e)=>{ reject('GigaPub: ' + describeErr(e)); });
+  });
+}
+
+// --- Ad #2: Adexium (event-based SDK, wrapped into a Promise) ---
+// NOTE: push-like ads don't have a video "playback" — adPlaybackCompleted
+// rarely/never fires for this format. adClosed (the ad was shown, then
+// dismissed/finished) is the real success signal here. Only noAdFound
+// counts as a real failure (no reward).
 function showAdexiumAd(){
   return new Promise((resolve, reject)=>{
     if(!adexiumInstance){ reject('Adexium: widget not initialized'); return; }
@@ -571,64 +575,23 @@ function showAdexiumAd(){
   });
 }
 
-function showGigaAd(){
-  return new Promise((resolve, reject)=>{
-    if(typeof window.showGiga !== 'function'){ reject('GigaPub: showGiga() not defined (script not loaded)'); return; }
-    window.showGiga().then(resolve).catch((e)=>{ reject('GigaPub: ' + describeErr(e)); });
-  });
-}
-
-function showTadsAd(){
-  return new Promise((resolve, reject)=>{
-    if(!window.tads){ reject('Tads.me: script not loaded'); return; }
-    try{
-      const adController = window.tads.init({
-        widgetId: 1613,
-        type: 'static',
-        debug: false,
-        onClickReward: (adId)=>{ console.log('Tads.me ad clicked:', adId); },
-        onAdsNotFound: ()=>{}
-      });
-      adController.loadAd()
-        .then(()=> adController.showAd())
-        .then(()=> resolve())
-        .catch((err)=>{ reject('Tads.me: ' + describeErr(err)); });
-    }catch(e){
-      reject('Tads.me: ' + describeErr(e));
-    }
-  });
-}
-
-function showAdsGalaxyAd(){
-  return new Promise((resolve, reject)=>{
-    if(typeof window.showAdsGalaxy !== 'function'){ reject('AdsGalaxy: SDK not loaded'); return; }
-    window.showAdsGalaxy()
-      .then((result)=>{ console.log('AdsGalaxy result:', result); resolve(); })
-      .catch((err)=>{ reject('AdsGalaxy: ' + (err?.code ? `${err.code} ${err.message||''}`.trim() : describeErr(err))); });
-  });
-}
-
+// GigaPub is required — if it fails, no reward (throws, chain rejects).
+// Adexium is best-effort: if it has no ad available or isn't loaded, we
+// still show it a try, but we do NOT block the reward on it — the user
+// already watched a real ad (GigaPub) and shouldn't be penalized for
+// Adexium's inventory being empty on their end.
 async function runAdChain(){
-  const results = {};
-  try{ await showAdexiumAd(); results.Adexium = 'ok'; }
-  catch(err){ results.Adexium = String(err); console.warn('Adexium unavailable:', err); }
-  try{ await showGigaAd(); results.GigaPub = 'ok'; }
-  catch(err){ results.GigaPub = String(err); console.warn('GigaPub unavailable:', err); }
-  try{ await showTadsAd(); results['Tads.me'] = 'ok'; }
-  catch(err){ results['Tads.me'] = String(err); console.warn('Tads.me unavailable:', err); }
-  try{ await showAdsGalaxyAd(); results.AdsGalaxy = 'ok'; }
-  catch(err){ results.AdsGalaxy = String(err); console.warn('AdsGalaxy unavailable:', err); }
-  window.__lastAdResults = results;
-  console.table(results);
-  const anySuccess = Object.values(results).some(v=>v==='ok');
-  if(!anySuccess){ throw 'No ad was available from any network: ' + JSON.stringify(results); }
-  return results;
-}
-function summarizeResults(results){
-  const order = ['Adexium','GigaPub','Tads.me','AdsGalaxy'];
-  return order.map(k => `${k} ${results[k]==='ok' ? '✅' : '❌'}`).join('  ·  ');
+  await showGigaAd();
+  try{
+    await showAdexiumAd();
+  }catch(err){
+    console.warn('Adexium unavailable, continuing with GigaPub-only reward:', err);
+  }
 }
 
+// Local 5-second simulator — only used as a last-resort fallback when
+// NEITHER ad network's script has loaded (e.g. testing outside Telegram
+// or before you've filled in your real GigaPub project id).
 function runFallbackAdModal(onDone){
   const modal=document.getElementById('adModal'); modal.classList.add('open');
   let sec=5; document.getElementById('adCountdown').textContent=sec;
@@ -638,30 +601,34 @@ function runFallbackAdModal(onDone){
   },1000);
 }
 
-function creditAd(extraInfo){
+function creditAd(){
   checkAdPeriod();
   S.adsWatchedToday++; S.totalWatched++;
   S.balance = +(S.balance+AD_REWARD).toFixed(3);
   save(); renderHome();
-  showToast('checkCircle', `+$${AD_REWARD.toFixed(2)} earned` + (extraInfo ? `\n${extraInfo}` : ''));
+  showToast('checkCircle',`+$${AD_REWARD.toFixed(2)} earned`);
 }
 
 async function watchAd(){
   checkAdPeriod();
   if(adWatching || S.adsWatchedToday>=AD_LIMIT) return;
   adWatching = true;
-  const allMissing = typeof window.showGiga !== 'function' && !adexiumInstance && !window.tads && typeof window.showAdsGalaxy !== 'function';
-  if(allMissing){
+
+  const bothMissing = typeof window.showGiga !== 'function' && !adexiumInstance;
+  if(bothMissing){
+    // Dev/testing fallback — no live ad SDKs loaded at all
     runFallbackAdModal(()=>{ adWatching=false; creditAd(); });
     return;
   }
+
   try{
-    const results = await runAdChain();
+    await runAdChain();       // GigaPub, then Adexium
     adWatching = false;
-    creditAd();
+    creditAd();                // reward given ONCE, only after both finished
   }catch(err){
     adWatching = false;
     console.warn('Ad chain incomplete, no reward given:', err);
+    // Shows the REAL reason (GigaPub vs Adexium, and why) directly in the toast
     showToast('alert', String(err));
   }
 }
@@ -693,19 +660,23 @@ function renderWebTasks(){
 function doWebTask(id){
   if(S.webTasks[id]) return;
   const task = WEB_TASKS.find(x=>x.id===id); if(!task) return;
-  const finish = (extraInfo)=>{
+
+  const finish = ()=>{
     S.webTasks[id]=true; S.balance=+(S.balance+task.reward).toFixed(3);
     save(); renderHome(); renderWebTasks();
-    showToast('checkCircle', `+$${task.reward.toFixed(2)} earned` + (extraInfo ? `\n${extraInfo}` : ''));
+    showToast('checkCircle',`+$${task.reward.toFixed(2)} earned`);
   };
+
   if(task.type==='ad'){
     if(adWatching) return;
     adWatching = true;
-    const allMissing = typeof window.showGiga !== 'function' && !adexiumInstance && !window.tads && typeof window.showAdsGalaxy !== 'function';
-    if(allMissing){
+    // Uses the same GigaPub → Adexium chain as the Home Watch Ad button:
+    // both ads must complete before this task counts as done.
+    const bothMissing = typeof window.showGiga !== 'function' && !adexiumInstance;
+    if(bothMissing){
       runFallbackAdModal(()=>{ adWatching=false; finish(); });
     } else {
-      runAdChain().then((results)=>{
+      runAdChain().then(()=>{
         adWatching=false; finish();
       }).catch((err)=>{
         adWatching=false;
@@ -715,6 +686,7 @@ function doWebTask(id){
     }
     return;
   }
+
   if(task.link) window.open(task.link,'_blank');
   setTimeout(finish, 1500);
 }
@@ -798,15 +770,15 @@ function renderHistory(){
 
 function showToast(icon,msg){
   const el=document.getElementById('toast');
-  el.innerHTML = iconSpan(icon)+`<span style="white-space:pre-line">${msg}</span>`;
+  el.innerHTML = iconSpan(icon)+`<span>${msg}</span>`;
   paintIcons(el);
   el.classList.add('show');
-  const hasBreakdown = msg.includes('\n');
-  const duration = (icon==='alert' || hasBreakdown) ? 5000 : 2400;
+  const duration = (icon==='alert') ? 5000 : 2400;
   clearTimeout(el._hideTimer);
   el._hideTimer = setTimeout(()=>el.classList.remove('show'), duration);
 }
 
+// Admin console helpers
 window.approveWithdraw=function(id){ const h=S.history.find(x=>x.id===id); if(h){h.status='completed';save();renderHistory();showToast('checkCircle','Approved');} };
 window.approveAllWithdraws=function(){ S.history.forEach(h=>{if(h.status==='pending')h.status='completed';}); save();renderHistory();showToast('checkCircle','All approved'); };
 window.setBalance=function(amt){ S.balance=+amt; save(); renderHome(); renderWithdraw(); };
