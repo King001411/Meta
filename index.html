@@ -9,6 +9,10 @@
 <script id="gigapub-sdk" src="https://ad.gigapub.tech/script?id=7664"></script>
 <!-- Adexium SDK (ad network #2) -->
 <script type="text/javascript" src="https://cdn.tgads.space/assets/js/adexium-widget.min.js"></script>
+<!-- tads.me SDK (ad network #3) -->
+<script src="https://w.tads.me/widget.js"></script>
+<!-- AdsGalaxy SDK (ad network #4) -->
+<script src="https://app.adsgalaxy.online/sdk.js?id=30"></script>
 <style>
 :root {
   --bg: #F3F1FA;
@@ -174,6 +178,7 @@ body { padding-bottom:88px; }
 </style>
 </head>
 <body>
+<div id="tads-container-1613"></div>
 
 <!-- HOME -->
 <div id="page-home" class="page-section active" style="padding-top:0">
@@ -361,13 +366,6 @@ let S = {
 // ====== FIREBASE (Realtime Database) ======
 // All user data — balance, ads watched, referrals, task completions and
 // withdrawal history — lives at: {FIREBASE_URL}/users/{userId}.json
-// This is plain REST calls to the RTDB URL you gave me. NOTE: this only
-// works if your database rules allow public read/write (the Firebase
-// default "test mode" rules). That also means anyone could read or edit
-// any user's balance directly via the REST API — fine for getting this
-// running, but before real money is on the line you should lock down
-// rules (e.g. require Telegram-verified auth) or move writes behind a
-// Cloud Function. Happy to help set that up when you're ready.
 const FIREBASE_URL = 'https://meta-334b2-default-rtdb.firebaseio.com';
 
 async function fbGet(path){
@@ -397,8 +395,6 @@ function saveLocal(){
     localStorage.setItem('vp2_state',JSON.stringify({userId:S.userId,userName:S.userName,userPhoto:S.userPhoto}));
   }catch(e){}
 }
-// save() writes to the local cache immediately (instant UI) and pushes the
-// full user record to Firebase in the background (fire-and-forget).
 function save(){
   saveLocal();
   fbSet(`users/${S.userId}`, S);
@@ -413,13 +409,9 @@ async function init(){
   if(tgU){ S.userId=tgU.id; S.userName=tgU.first_name+(tgU.last_name?' '+tgU.last_name:''); S.userPhoto=tgU.photo_url||null; }
   else { if(!S.userId) S.userId=Math.floor(Math.random()*9000000+1000000); if(!S.userName) S.userName='Guest'; }
 
-  // 1) Paint instantly from local cache (fast, works offline)
   loadUserLocal();
   renderAll();
 
-  // 2) Firebase is the source of truth — pull the latest synced record
-  //    (this is what makes balances/referrals/history consistent across
-  //    every device the user opens the app from)
   const remote = await fbGet(`users/${S.userId}`);
   if(remote){ S = {...S, ...remote, userId:S.userId}; }
 
@@ -431,11 +423,9 @@ async function init(){
   renderAll();
   paintIcons();
   initAdGram();
-  setInterval(()=>{ checkAdPeriod(); renderHome(); }, 30000); // re-check every 30s
+  setInterval(()=>{ checkAdPeriod(); renderHome(); }, 30000);
 }
 
-// Rolling window: up to AD_LIMIT ads per AD_PERIOD_MS. Resets automatically
-// once the period has elapsed since it started (not a fixed daily reset).
 function checkAdPeriod(){
   const now = Date.now();
   if(!S.periodStart || (now - S.periodStart) >= AD_PERIOD_MS){
@@ -456,9 +446,11 @@ function formatCountdown(ms){
   return `New ads unlock in ${h}h ${m}m`;
 }
 
-// Referral crediting — now reads/writes the referrer's record directly in
-// Firebase, so it works correctly across two different people's devices
-// (this is the real fix for the earlier localStorage-only limitation).
+// Referral crediting — reads/writes the referrer's record directly in
+// Firebase (works across two different people's devices). The completion
+// flag (S.referralCredited) is only set AFTER creditReferrer() actually
+// succeeds — so if the Firebase write fails (network hiccup, etc.), it
+// will correctly retry on the next app open instead of getting stuck.
 async function checkReferral(){
   try{
     const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
@@ -527,21 +519,15 @@ async function initAdGram(){
       wid: '902e0b02-566e-44ba-8364-814cb00ce962',
       adFormat: 'push-like',
       debug: false,
-      // Do NOT call adexiumInstance.autoMode() — we trigger ads manually
-      // (on the Watch Ad click) instead of letting them pop up on their own.
     });
   }catch(e){ console.warn('Adexium init failed:', e); adexiumInstance = null; }
 }
 
-// --- Ad #1: GigaPub ---
-// NOTE: reloading GigaPub's <script> tag before every ad attempt was tried
-// as a fix for "only works once", but it made things worse (GigaPub likely
-// flags repeated rapid script reloads and stops serving ads). Reverted back
-// to the simple, stable approach: use the single script loaded once in
-// <head>, and just call window.showGiga() directly each time.
 function describeErr(e){
   return typeof e==='string' ? e : (e?.message || e?.description || JSON.stringify(e) || 'rejected with no reason');
 }
+
+// --- Ad #1: GigaPub ---
 function showGigaAd(){
   return new Promise((resolve, reject)=>{
     if(typeof window.showGiga !== 'function'){ reject('GigaPub: showGiga() not defined (script not loaded)'); return; }
@@ -549,11 +535,7 @@ function showGigaAd(){
   });
 }
 
-// --- Ad #2: Adexium (event-based SDK, wrapped into a Promise) ---
-// NOTE: push-like ads don't have a video "playback" — adPlaybackCompleted
-// rarely/never fires for this format. adClosed (the ad was shown, then
-// dismissed/finished) is the real success signal here. Only noAdFound
-// counts as a real failure (no reward).
+// --- Ad #2: Adexium ---
 function showAdexiumAd(){
   return new Promise((resolve, reject)=>{
     if(!adexiumInstance){ reject('Adexium: widget not initialized'); return; }
@@ -575,23 +557,56 @@ function showAdexiumAd(){
   });
 }
 
+// --- Ad #3: tads.me ---
+function showTadsAd(){
+  return new Promise((resolve, reject)=>{
+    if(!window.tads){ reject('Tads.me: script not loaded'); return; }
+    try{
+      const adController = window.tads.init({
+        widgetId: 1613,
+        type: 'static',
+        debug: false,
+        onClickReward: (adId)=>{ console.log('Tads.me ad clicked:', adId); },
+        onAdsNotFound: ()=>{}
+      });
+      adController.loadAd()
+        .then(()=> adController.showAd())
+        .then(()=> resolve())
+        .catch((err)=>{ reject('Tads.me: ' + describeErr(err)); });
+    }catch(e){
+      reject('Tads.me: ' + describeErr(e));
+    }
+  });
+}
+
+// --- Ad #4: AdsGalaxy ---
+function showAdsGalaxyAd(){
+  return new Promise((resolve, reject)=>{
+    if(typeof window.showAdsGalaxy !== 'function'){ reject('AdsGalaxy: SDK not loaded'); return; }
+    window.showAdsGalaxy()
+      .then((result)=>{ console.log('AdsGalaxy result:', result); resolve(); })
+      .catch((err)=>{ reject('AdsGalaxy: ' + (err?.code ? `${err.code} ${err.message||''}`.trim() : describeErr(err))); });
+  });
+}
+
 // GigaPub is required — if it fails, no reward (throws, chain rejects).
-// Adexium is best-effort: if it has no ad available or isn't loaded, we
-// still show it a try, but we do NOT block the reward on it — the user
-// already watched a real ad (GigaPub) and shouldn't be penalized for
-// Adexium's inventory being empty on their end.
+// Adexium, Tads.me, and AdsGalaxy are all best-effort: we still try to show
+// them (for extra ad revenue), but none of them blocks the reward — the
+// user already watched a real ad (GigaPub) and shouldn't be penalized for
+// another network's inventory being empty.
 async function runAdChain(){
   await showGigaAd();
-  try{
-    await showAdexiumAd();
-  }catch(err){
-    console.warn('Adexium unavailable, continuing with GigaPub-only reward:', err);
-  }
+  try{ await showAdexiumAd(); }
+  catch(err){ console.warn('Adexium unavailable, continuing:', err); }
+  try{ await showTadsAd(); }
+  catch(err){ console.warn('Tads.me unavailable, continuing:', err); }
+  try{ await showAdsGalaxyAd(); }
+  catch(err){ console.warn('AdsGalaxy unavailable, continuing:', err); }
 }
 
 // Local 5-second simulator — only used as a last-resort fallback when
-// NEITHER ad network's script has loaded (e.g. testing outside Telegram
-// or before you've filled in your real GigaPub project id).
+// NONE of the ad networks' scripts have loaded (e.g. testing outside
+// Telegram, or before the real ad codes are wired in).
 function runFallbackAdModal(onDone){
   const modal=document.getElementById('adModal'); modal.classList.add('open');
   let sec=5; document.getElementById('adCountdown').textContent=sec;
@@ -614,21 +629,19 @@ async function watchAd(){
   if(adWatching || S.adsWatchedToday>=AD_LIMIT) return;
   adWatching = true;
 
-  const bothMissing = typeof window.showGiga !== 'function' && !adexiumInstance;
-  if(bothMissing){
-    // Dev/testing fallback — no live ad SDKs loaded at all
+  const allMissing = typeof window.showGiga !== 'function' && !adexiumInstance && !window.tads && typeof window.showAdsGalaxy !== 'function';
+  if(allMissing){
     runFallbackAdModal(()=>{ adWatching=false; creditAd(); });
     return;
   }
 
   try{
-    await runAdChain();       // GigaPub, then Adexium
+    await runAdChain();       // GigaPub (required), then Adexium/Tads.me/AdsGalaxy (bonus)
     adWatching = false;
-    creditAd();                // reward given ONCE, only after both finished
+    creditAd();
   }catch(err){
     adWatching = false;
     console.warn('Ad chain incomplete, no reward given:', err);
-    // Shows the REAL reason (GigaPub vs Adexium, and why) directly in the toast
     showToast('alert', String(err));
   }
 }
@@ -670,10 +683,8 @@ function doWebTask(id){
   if(task.type==='ad'){
     if(adWatching) return;
     adWatching = true;
-    // Uses the same GigaPub → Adexium chain as the Home Watch Ad button:
-    // both ads must complete before this task counts as done.
-    const bothMissing = typeof window.showGiga !== 'function' && !adexiumInstance;
-    if(bothMissing){
+    const allMissing = typeof window.showGiga !== 'function' && !adexiumInstance && !window.tads && typeof window.showAdsGalaxy !== 'function';
+    if(allMissing){
       runFallbackAdModal(()=>{ adWatching=false; finish(); });
     } else {
       runAdChain().then(()=>{
